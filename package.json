@@ -1,0 +1,12 @@
+﻿{
+  "name": "link4m-bypass-suite",
+  "version": "1.0.0",
+  "description": "Link4M Ultimate Automated Bypass Suite with Offline AI",
+  "main": "src/ui/menu.js",
+  "scripts": {
+    "start": "node src/ui/menu.js"
+  },
+  "keywords": ["link4m", "bypass", "whisper-ai", "rapidocr", "automation"],
+  "author": "khanghack222",
+  "license": "MIT"
+}
