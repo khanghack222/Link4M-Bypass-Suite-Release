@@ -233,20 +233,14 @@ def run(target_url: str = None):
                 if img_bytes:
                     res, _ = ocr(img_bytes)
                     if res:
-                        TLD_REGEX = r'(?:com|net|vn|org|info|biz|ltd|co|io|us\.com|jpn\.com|za\.com|uk\.com|vip|top|cc|me|online|site|us\.org|app|xyz|tv)'
+                        TLD_REGEX = r'(?:com|net|vn|org|info|biz|ltd|co|io|in|cc|me|live|pro|club|tech|site|online|top|vip|win|app|xyz|tv|us|uk|ws|space|store|bet|game|games|asia|link|click|icu|pw|work|one|news|today|blog|us\.com|jpn\.com|za\.com|uk\.com|us\.org)'
                         candidates = []
                         for line in res:
                             text = line[1].strip()
                             text_clean = re.sub(r'\.i0(?=[^a-zA-Z0-9]|$)', '.io', text, flags=re.IGNORECASE)
-                            m2 = re.search(r'([a-zA-Z0-9\-]{2,}\.[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*\.' + TLD_REGEX + r')', text_clean, re.IGNORECASE)
-                            if m2:
-                                d = m2.group(1).lower().rstrip("/")
-                                if "link4m" not in d and d not in candidates:
-                                    candidates.append(d)
-
-                            m1 = re.search(r'([a-zA-Z0-9\-]{2,}\.' + TLD_REGEX + r')', text_clean, re.IGNORECASE)
-                            if m1:
-                                d = m1.group(1).lower().rstrip("/")
+                            matches = re.findall(r'([a-zA-Z0-9\-]{2,}(?:\.[a-zA-Z0-9\-]+)*\.' + TLD_REGEX + r')(?=[^a-zA-Z0-9\-]|$)', text_clean, re.IGNORECASE)
+                            for m in matches:
+                                d = m.lower().rstrip("/")
                                 if "link4m" not in d and d not in candidates:
                                     candidates.append(d)
 
