@@ -1,6 +1,7 @@
 ﻿import re
 import time
 import urllib.request
+import ssl
 from rapidocr_onnxruntime import RapidOCR
 from config import log
 
@@ -11,14 +12,61 @@ def get_ocr():
         _OCR_INSTANCE = RapidOCR()
     return _OCR_INSTANCE
 
-TLD_REGEX = r'(?:com|net|vn|org|info|biz|ltd|co|io|in|cc|me|live|pro|club|tech|site|online|top|vip|win|app|xyz|tv|us|uk|ws|space|store|bet|game|games|asia|link|click|icu|pw|work|one|news|today|blog|us\.com|jpn\.com|za\.com|uk\.com|us\.org)'
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
+
+MEDIA_EXTS = {'jpg', 'png', 'webp', 'jpeg', 'gif', 'html', 'js', 'css', 'svg', 'mp3', 'mp4', 'json'}
+
+def extract_domain_candidates(ocr_lines):
+    candidates = []
+    texts = [line[1].strip() for line in (ocr_lines or []) if len(line) > 1]
+
+    # Priority 1: Match URLs starting with http:// or https://
+    for text in texts:
+        for m in re.findall(r'https?:\/\/([a-zA-Z0-9][-a-zA-Z0-9]*(?:\.[a-zA-Z0-9][-a-zA-Z0-9]*)+)', text):
+            d = m.lower().rstrip('/')
+            if 'link4m' not in d and d not in candidates:
+                candidates.append(d)
+
+    # Priority 2: Match any token with dot domain (letters/digits + dot + 2..10 letter TLD)
+    for text in texts:
+        cleaned = re.sub(r'[^a-zA-Z0-9\.\-\/]', ' ', text)
+        for part in cleaned.split():
+            part = part.strip('./-')
+            m = re.search(r'(?:[a-zA-Z0-9\-]+\.)+([a-zA-Z]{2,10})$', part)
+            if m:
+                tld = m.group(1).lower()
+                if tld in MEDIA_EXTS:
+                    continue
+                d = part.lower().rstrip('/')
+                if 'link4m' not in d and len(d) >= 4 and d not in candidates:
+                    candidates.append(d)
+
+    return candidates
+
+def probe_domain_live(domain: str) -> str:
+    for proto in ['https://', 'http://']:
+        target_url = proto + domain
+        try:
+            req = urllib.request.Request(
+                target_url,
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            )
+            with urllib.request.urlopen(req, context=_SSL_CTX, timeout=4.0) as resp:
+                code = resp.getcode()
+                if code in (200, 301, 302):
+                    return target_url
+        except Exception:
+            pass
+    return ""
 
 def detect_sponsor_domain(page_link) -> str:
     target_img = None
-    for _ in range(5):
+    for _ in range(6):
         for img in page_link.locator("img").all():
             src = img.get_attribute("src") or ""
-            if "img.link4m.net" in src and "/1_" in src:
+            if "img.link4m.net" in src and ("/1_" in src or "advertiser" in src):
                 target_img = img
                 break
         if target_img:
@@ -51,36 +99,27 @@ def detect_sponsor_domain(page_link) -> str:
     if not res:
         return ""
 
-    candidates = []
-    for line in res:
-        text = line[1].strip()
-        text_clean = re.sub(r'\.i0(?=[^a-zA-Z0-9]|$)', '.io', text, flags=re.IGNORECASE)
-        matches = re.findall(r'([a-zA-Z0-9\-]{2,}(?:\.[a-zA-Z0-9\-]+)*\.' + TLD_REGEX + r')(?=[^a-zA-Z0-9\-]|$)', text_clean, re.IGNORECASE)
-        for m in matches:
-            d = m.lower().rstrip("/")
-            if "link4m" not in d and d not in candidates:
-                candidates.append(d)
+    candidates = extract_domain_candidates(res)
+    log(f"[*] OCR extracted domain candidates: {candidates}")
 
-    filtered = [c for c in candidates if c not in ["uk.com", "us.com", "jpn.com", "za.com", "us.org"]]
-    log(f"[*] OCR domain candidates: {filtered}")
+    # Probe live domain
+    for c in candidates:
+        live_url = probe_domain_live(c)
+        if live_url:
+            log(f"[+] Verified live sponsor website: {live_url}")
+            return live_url
 
-    for c in filtered:
-        test_u = f"https://{c}"
-        try:
-            req = urllib.request.Request(test_u, headers={"User-Agent": "Mozilla/5.0"})
-            if urllib.request.urlopen(req, timeout=3.5).getcode() in (200, 301, 302):
-                log(f"[+] Verified active sponsor website: {test_u}")
-                return test_u
-        except Exception:
-            pass
+    if candidates:
+        fallback = f"https://{candidates[0]}"
+        log(f"[+] Fallback to top candidate: {fallback}")
+        return fallback
 
-    return f"https://{filtered[0]}" if filtered else ""
+    return ""
 
 def solve_sponsor_quest(context, sponsor_url: str) -> str:
     log(f"[*] Opening sponsor site via Google referrer: {sponsor_url}")
     page = context.new_page()
 
-    # Fast route optimization: abort images/media on sponsor to cut RAM & load time
     page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
 
     try:
