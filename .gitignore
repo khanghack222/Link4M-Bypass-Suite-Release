@@ -1,0 +1,13 @@
+﻿# Gitignore for Link4M Bypass Suite
+*.log
+*.png
+*.html
+__pycache__/
+*.pyc
+build_dist/
+*.build/
+*.dist/
+*.onefile-build/
+destination_url.txt
+extracted_code.txt
+.venv/

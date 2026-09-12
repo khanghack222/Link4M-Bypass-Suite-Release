@@ -1,0 +1,35 @@
+﻿===================================================================
+             LINK4M BYPASS - FULL SOURCE & ARCHITECTURE
+===================================================================
+
+[ CẤU TRÚC PHÂN TẦNG SOURCE CODE ]
+Link4M_Full_Source/
+├── Link4M_Bypass.exe       # Launcher thực thi chính
+├── HUONG_DAN.txt           # Tài liệu dự án
+│
+├── scripts/                # Script khởi tạo môi trường & biên dịch
+│   ├── bootstrap.ps1       # Tự động nạp môi trường khi chạy
+│   ├── Cai_Dat_Moi_Truong.bat # Batch installer thủ công
+│   └── Launcher.cs         # Mã nguồn C# của file .exe
+│
+├── src/                    # Mã nguồn chính của ứng dụng
+│   ├── core/               # Lõi tự động hóa & AI
+│   │   ├── __init__.py
+│   │   ├── bypass.py       # Playwright automation, OCR & multi-step
+│   │   └── recaptcha_solver.py # Whisper AI audio captcha solver
+│   └── ui/                 # Giao diện điều khiển
+│       └── menu.js         # Node.js terminal UI & stream log
+│
+├── tests/                  # Bộ script kiểm thử từng chức năng riêng biệt
+│   ├── test_api.py         # Kiểm tra API endpoint của Link4M
+│   ├── test_recaptcha.py   # Kiểm thử giải captcha v2 bằng Whisper
+│   ├── test_playwright_bypass.py # Kịch bản kiểm thử Playwright
+│   ├── ocr_live.py         # Kiểm thử nhận diện chữ từ ảnh bằng RapidOCR
+│   └── ...                 # Các test case theo từng nhà tài trợ
+│
+└── research/               # Tài liệu & mã nguồn nghiên cứu reverse engineering
+    ├── link4m_scripts/     # JS gốc & JS đã deobfuscate của Link4M
+    ├── sponsor_scripts/    # JS đếm ngược của các bên tài trợ (service_v3, five888,...)
+    ├── dom_dumps/          # Cấu trúc HTML thực tế bóc tách từ các chiến dịch
+    └── inspectors/         # Các công cụ phân tích network và element DOM
+===================================================================

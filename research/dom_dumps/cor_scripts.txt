@@ -1,0 +1,10 @@
+https://cor.jpn.com/wp-includes/js/jquery/jquery.min.js?ver=3.7.1
+https://cor.jpn.com/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1
+//s1.what-on.com/widget/service-v3.js?key=l1DWo
+/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js
+https://cor.jpn.com/wp-includes/js/hoverIntent.min.js?ver=1.10.2
+https://cor.jpn.com/wp-content/cache/min/1/wp-content/themes/flatsome/assets/js/flatsome.js?ver=1789041378
+https://cor.jpn.com/wp-content/cache/min/1/wp-content/themes/flatsome/inc/integrations/wp-rocket/flatsome-wp-rocket.js?ver=1789041378
+https://cor.jpn.com/wp-content/cache/min/1/wp-content/themes/flatsome/inc/extensions/flatsome-live-search/flatsome-live-search.js?ver=1789041378
+https://cor.jpn.com/wp-content/plugins/wp-rocket/assets/js/lazyload/17.8.3/lazyload.min.js
+https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495

@@ -1,0 +1,274 @@
+[
+  {
+    "tag": "BUTTON",
+    "id": "",
+    "name": "",
+    "type": "button",
+    "text": "\n\t\t\t\tMenu điều hướng\n\t\t\t\t\n\t\t\t\t\n\t\t\t\t\n\t\t\t",
+    "href": null
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "",
+    "href": "https://link4m.com/"
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "TRANG CHỦ",
+    "href": "https://link4m.com/"
+  },
+  {
+    "tag": "INPUT",
+    "id": "",
+    "name": "password",
+    "type": "text",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "",
+    "name": "alias",
+    "type": "hidden",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "",
+    "name": "campaign_id",
+    "type": "hidden",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "",
+    "name": "display_id",
+    "type": "hidden",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "",
+    "name": "prefix",
+    "type": "hidden",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "Click vào đây để tiếp tục",
+    "href": ""
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "",
+    "href": "https://google.com/"
+  },
+  {
+    "tag": "INPUT",
+    "id": "password-2",
+    "name": "password",
+    "type": "text",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "alias-2",
+    "name": "alias",
+    "type": "hidden",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "campaign_id-2",
+    "name": "campaign_id",
+    "type": "hidden",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "display_id-2",
+    "name": "display_id",
+    "type": "hidden",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "prefix_code-2",
+    "name": "prefix",
+    "type": "hidden",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "Click vào đây để tiếp tục",
+    "href": ""
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "Báo lỗi",
+    "href": ""
+  },
+  {
+    "tag": "BUTTON",
+    "id": "",
+    "name": "",
+    "type": "button",
+    "text": "\n\t\t\t\t\t×\n\t\t\t\t",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "modal-report-error-1",
+    "name": "modal-report-error",
+    "type": "radio",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "modal-report-error-2",
+    "name": "modal-report-error",
+    "type": "radio",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "modal-report-error-3",
+    "name": "modal-report-error",
+    "type": "radio",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "INPUT",
+    "id": "modal-report-advertise-id",
+    "name": "modal-report-advertise-id",
+    "type": "hidden",
+    "text": "",
+    "href": null
+  },
+  {
+    "tag": "BUTTON",
+    "id": "",
+    "name": "",
+    "type": "button",
+    "text": "Đóng",
+    "href": null
+  },
+  {
+    "tag": "BUTTON",
+    "id": "modal-report-submit",
+    "name": "",
+    "type": "button",
+    "text": "Gửi",
+    "href": null
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": " Đăng Ký Tài Khoản",
+    "href": "https://link4m.com/auth/signup"
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": " Đăng Nhập",
+    "href": "https://link4m.com/auth/signin"
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "Trang chủ",
+    "href": "https://link4m.com/"
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "Payout Rates",
+    "href": "https://link4m.com/payout-rates.html"
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "Liên hệ",
+    "href": "https://link4m.com/contact.html"
+  },
+  {
+    "tag": "BUTTON",
+    "id": "dropdownMenuButton1",
+    "name": "",
+    "type": "button",
+    "text": " Tiếng Việt",
+    "href": null
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "English",
+    "href": "https://link4m.org/go/HbsX8nh#"
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "Link4M",
+    "href": "https://link4m.com/"
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "Rút gọn link kiếm tiền.",
+    "href": "https://link4m.com/"
+  },
+  {
+    "tag": "A",
+    "id": "",
+    "name": "",
+    "type": "",
+    "text": "",
+    "href": "https://link4m.org/go/HbsX8nh#"
+  }
+]
