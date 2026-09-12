@@ -16,6 +16,38 @@ if CORE_DIR not in sys.path:
 
 BASE_DIR = os.path.abspath(os.path.join(CORE_DIR, "..", ".."))
 LOG_FILE = os.path.join(BASE_DIR, "e2e_bypass.log")
+DATA_DIR = os.path.join(BASE_DIR, "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+CACHE_FILE = os.path.join(DATA_DIR, "campaign_cache.json")
+
+import json
+from typing import Optional, Dict, Any
+
+def load_cache() -> Dict[str, Any]:
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_cache(key: str, code: str):
+    cache = load_cache()
+    cache[key.lower().strip()] = {"code": code.strip(), "timestamp": time.time()}
+    try:
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False)
+        log(f"[💾 CACHE SAVED] Stored mission code '{code}' for '{key}'")
+    except Exception as e:
+        log(f"[!] Failed to save cache: {e}")
+
+def get_cached_code(key: str, max_age_hours: int = 12) -> Optional[str]:
+    item = load_cache().get(key.lower().strip())
+    if item and isinstance(item, dict):
+        if time.time() - item.get("timestamp", 0) < max_age_hours * 3600:
+            return item.get("code")
+    return None
 
 def get_chrome_path():
     candidates = [
@@ -36,6 +68,202 @@ def log(msg: str):
     print(f"[{time.strftime('%X')}] {msg}", flush=True)
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(f"[{time.strftime('%X')}] {msg}\n")
+
+def harvest_code_browser(context, sponsor_url: str) -> Optional[str]:
+    log(f"[*] Tab 2: Opening Google.com then navigating to {sponsor_url}...")
+    page_sponsor = context.new_page()
+    try:
+        page_sponsor.goto("https://www.google.com", wait_until="domcontentloaded", timeout=30000)
+    except Exception:
+        pass
+    time.sleep(1)
+
+    try:
+        page_sponsor.goto(sponsor_url, wait_until="domcontentloaded", referer="https://www.google.com/", timeout=45000)
+    except Exception as e:
+        log(f"[!] Warning navigating to sponsor URL: {e}")
+    time.sleep(2)
+
+    # Detect traffic key from HTML or scripts
+    html_sponsor = page_sponsor.content()
+    m_key = re.search(r'(?:what-on\.com|website-analytics\.net|traffic)[^"\']*?key=([a-zA-Z0-9]+)', html_sponsor)
+    traffic_key = m_key.group(1) if m_key else None
+    if not traffic_key:
+        div_ids = page_sponsor.evaluate("() => Array.from(document.querySelectorAll('div[id]')).map(d => d.id).filter(id => /^[a-zA-Z0-9]{8}$/.test(id))")
+        if div_ids:
+            traffic_key = div_ids[0]
+    log(f"[*] Detected traffic_key: {traffic_key}")
+
+    page_sponsor.evaluate("""() => {
+        document.querySelectorAll('script[type="rocketlazyloadscript"]').forEach(s => {
+            const newScript = document.createElement('script');
+            if (s.hasAttribute('data-rocket-src')) {
+                let src = s.getAttribute('data-rocket-src');
+                if (src.startsWith('//')) src = 'https:' + src;
+                newScript.src = src;
+            } else {
+                newScript.textContent = s.textContent;
+            }
+            document.body.appendChild(newScript);
+        });
+    }""")
+    time.sleep(2)
+
+    if traffic_key:
+        page_sponsor.evaluate(f"() => {{ window.location.hash = '#ss-{traffic_key}'; if (typeof forceShowButton === 'function') forceShowButton(); }}")
+        time.sleep(2)
+
+    log("[*] Scrolling to footer on sponsor site...")
+    page_sponsor.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    time.sleep(1.5)
+
+    log("[*] Finding 'LẤY MÃ' button on sponsor site...")
+    btn_selector = f"[id='{traffic_key}'] button, [id='{traffic_key}'] [type='button'], [id='{traffic_key}'] a, [id='{traffic_key}'], button:has-text('LẤY MÃ'), button:has-text('Lấy mã'), button:has-text('LAY MA'), a:has-text('LẤY MÃ'), a:has-text('Lấy mã'), .whatoncode" if traffic_key else "button:has-text('LẤY MÃ'), button:has-text('Lấy mã'), button:has-text('LAY MA'), a:has-text('LẤY MÃ'), a:has-text('Lấy mã'), .whatoncode"
+    btn = page_sponsor.locator(btn_selector)
+    if btn.count() == 0:
+        log("[!] Could not find LẤY MÃ button! Trying to scroll and retry...")
+        page_sponsor.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        time.sleep(2)
+        btn = page_sponsor.locator(btn_selector)
+
+    if btn.count() == 0:
+        log("[!] Button still not found.")
+        page_sponsor.close()
+        return None
+
+    code_found = None
+    def on_sponsor_resp(res):
+        nonlocal code_found
+        if "get_quest_code.html" in res.url:
+            try:
+                data = res.json()
+                log(f"[+] INTERCEPTED get_quest_code: {data}")
+                if data.get("success"):
+                    if "id" in data:
+                        log(f"[+] Quest ID captured: {data['id']}")
+                    else:
+                        code_found = data.get("html")
+                        log(f"🎉 EXTRACTED SPONSOR CODE FROM API: {code_found}")
+            except Exception as e:
+                log(f"[!] Sponsor resp parse error: {e}")
+
+    page_sponsor.on("response", on_sponsor_resp)
+
+    current_step = 1
+    max_steps = 3
+    visited_urls = set([sponsor_url.rstrip("/")])
+
+    while current_step <= max_steps and not code_found:
+        log(f"\n==========================================")
+        log(f"[*] EXECUTING STEP {current_step} ON SPONSOR SITE")
+        log(f"==========================================")
+
+        if current_step > 1:
+            article_target = None
+            try:
+                links = page_sponsor.locator("a[href^='https://']").all()
+                for a in links:
+                    h = a.get_attribute("href") or ""
+                    h_clean = h.rstrip("/")
+                    if sponsor_url in h and h_clean not in visited_urls and not any(x in h for x in [".jpg", ".png", ".webp", ".css", ".js", "feed", "wp-", "#"]):
+                        article_target = h
+                        visited_urls.add(h_clean)
+                        break
+            except Exception:
+                pass
+
+            if not article_target:
+                article_target = sponsor_url + f"/bai-viet-{current_step}/"
+                visited_urls.add(article_target.rstrip("/"))
+
+            log(f"[*] Navigating to Step {current_step} article: {article_target}")
+            try:
+                page_sponsor.goto(article_target, wait_until="domcontentloaded", timeout=45000)
+            except Exception as e:
+                log(f"[!] Warning on article navigation: {e}")
+            time.sleep(2)
+
+            page_sponsor.evaluate("""() => {
+                document.querySelectorAll('script[type="rocketlazyloadscript"]').forEach(s => {
+                    const newScript = document.createElement('script');
+                    if (s.hasAttribute('data-rocket-src')) {
+                        let src = s.getAttribute('data-rocket-src');
+                        if (src.startsWith('//')) src = 'https:' + src;
+                        newScript.src = src;
+                    } else {
+                        newScript.textContent = s.textContent;
+                    }
+                    document.body.appendChild(newScript);
+                });
+            }""")
+            time.sleep(1.5)
+
+            if traffic_key:
+                page_sponsor.evaluate(f"() => {{ window.location.hash = '#ss-{traffic_key}'; if (typeof forceShowButton === 'function') forceShowButton(); }}")
+                time.sleep(1.5)
+
+            page_sponsor.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            time.sleep(1)
+
+            btn = page_sponsor.locator(btn_selector)
+            if btn.count() == 0:
+                log(f"[!] Step {current_step}: Button not found immediately, scrolling more...")
+                page_sponsor.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                time.sleep(2)
+                btn = page_sponsor.locator(btn_selector)
+
+            if btn.count() == 0:
+                log(f"[!] Step {current_step}: Button still not found. Skipping...")
+                break
+
+        log(f"[+] Step {current_step}: Button located. Clicking...")
+        page_sponsor.evaluate("() => document.querySelectorAll('#hpps-popup, .hpps-popup, .popup, .modal, [class*=\"popup\"], [id*=\"popup\"]').forEach(e => e.remove())")
+        try:
+            btn.first.click(force=True)
+        except Exception:
+            btn.first.evaluate("el => el.click()")
+        time.sleep(2)
+
+        detected_sec = page_sponsor.evaluate(f"() => {{ const el = document.getElementById('{traffic_key}'); return el && el.dataset.time ? parseFloat(el.dataset.time) : 60; }}")
+        log(f"[*] Step {current_step}: Detected countdown duration = {detected_sec}s")
+
+        wait_limit = int(detected_sec) + 15 if detected_sec else 75
+        log(f"[*] Waiting for countdown (max {wait_limit}s)...")
+
+        for sec in range(1, wait_limit + 1):
+            if code_found:
+                break
+            time.sleep(1)
+            delta = 60 if sec % 2 == 0 else -40
+            page_sponsor.evaluate(f"() => {{ window.scrollBy(0, {delta}); window.dispatchEvent(new Event('scroll')); window.dispatchEvent(new Event('mousewheel')); }}")
+
+            rem = page_sponsor.evaluate(f"() => {{ const el = document.getElementById('{traffic_key}'); return el && el.dataset.time ? parseFloat(el.dataset.time) : null; }}")
+            if sec % 5 == 0 or (rem is not None and rem <= 5):
+                log(f"  [Step {current_step} - {sec}s] Remaining: {rem}s")
+
+            if code_found:
+                log(f"🎉 Code acquired during Step {current_step} at {sec}s!")
+                break
+
+            has_quest = page_sponsor.evaluate("() => { for (let k in localStorage) { if (k.includes('_quest')) return true; } return false; }")
+            if rem is not None and rem <= 0:
+                time.sleep(2)
+                if code_found or has_quest:
+                    log(f"[+] Step {current_step} countdown completed at {sec}s!")
+                    break
+
+        if not code_found:
+            current_step += 1
+
+    if not code_found:
+        body_text = page_sponsor.evaluate("() => document.body.innerText")
+        m_body = re.search(r'(?:M[ãa]\s*KM|M[ãa]\s*x[áa]c\s*nh[ậa]n|Code)[\s\:\-]+([A-Za-z0-9]{4,8})', body_text)
+        if m_body:
+            code_found = m_body.group(1)
+            log(f"[+] FOUND CODE IN BODY TEXT: {code_found}")
+
+    page_sponsor.close()
+    return code_found
 
 def run(target_url: str = None):
     if not target_url:
@@ -291,202 +519,23 @@ def run(target_url: str = None):
 
             log(f"🎉 TARGET SPONSOR WEBSITE FOR THIS MISSION: {sponsor_url}")
 
-            # Tab 2: Mở web tài trợ chính xác
-            log(f"[*] Tab 2: Opening Google.com then navigating to {sponsor_url}...")
-            page_sponsor = context.new_page()
-            try:
-                page_sponsor.goto("https://www.google.com", wait_until="domcontentloaded", timeout=30000)
-            except Exception:
-                pass
-            time.sleep(1)
-
-            try:
-                page_sponsor.goto(sponsor_url, wait_until="domcontentloaded", referer="https://www.google.com/", timeout=45000)
-            except Exception as e:
-                log(f"[!] Warning navigating to sponsor URL: {e}")
-            time.sleep(2)
-
-            # Detect traffic key from HTML or scripts
-            html_sponsor = page_sponsor.content()
-            m_key = re.search(r'(?:what-on\.com|website-analytics\.net|traffic)[^"\']*?key=([a-zA-Z0-9]+)', html_sponsor)
-            traffic_key = m_key.group(1) if m_key else None
-            if not traffic_key:
-                div_ids = page_sponsor.evaluate("() => Array.from(document.querySelectorAll('div[id]')).map(d => d.id).filter(id => /^[a-zA-Z0-9]{8}$/.test(id))")
-                if div_ids:
-                    traffic_key = div_ids[0]
-            log(f"[*] Detected traffic_key: {traffic_key}")
-
-            page_sponsor.evaluate("""() => {
-                document.querySelectorAll('script[type="rocketlazyloadscript"]').forEach(s => {
-                    const newScript = document.createElement('script');
-                    if (s.hasAttribute('data-rocket-src')) {
-                        let src = s.getAttribute('data-rocket-src');
-                        if (src.startsWith('//')) src = 'https:' + src;
-                        newScript.src = src;
-                    } else {
-                        newScript.textContent = s.textContent;
-                    }
-                    document.body.appendChild(newScript);
-                });
-            }""")
-            time.sleep(2)
-
-            if traffic_key:
-                page_sponsor.evaluate(f"() => {{ window.location.hash = '#ss-{traffic_key}'; if (typeof forceShowButton === 'function') forceShowButton(); }}")
-                time.sleep(2)
-
-            log("[*] Scrolling to footer on sponsor site...")
-            page_sponsor.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(1.5)
-
-            log("[*] Finding 'LẤY MÃ' button on sponsor site...")
-            btn_selector = f"[id='{traffic_key}'] button, [id='{traffic_key}'] [type='button'], [id='{traffic_key}'] a, [id='{traffic_key}'], button:has-text('LẤY MÃ'), button:has-text('Lấy mã'), button:has-text('LAY MA'), a:has-text('LẤY MÃ'), a:has-text('Lấy mã'), .whatoncode" if traffic_key else "button:has-text('LẤY MÃ'), button:has-text('Lấy mã'), button:has-text('LAY MA'), a:has-text('LẤY MÃ'), a:has-text('Lấy mã'), .whatoncode"
-            btn = page_sponsor.locator(btn_selector)
-            if btn.count() == 0:
-                log("[!] Could not find LẤY MÃ button! Trying to scroll and retry...")
-                page_sponsor.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                time.sleep(2)
-                btn = page_sponsor.locator(btn_selector)
-
-            if btn.count() == 0:
-                log("[!] Button still not found. Exiting...")
-                browser.close()
-                return
-
+            sponsor_domain = re.sub(r'^https?://', '', sponsor_url).split('/')[0].lower().strip()
+            cached_code = get_cached_code(sponsor_domain)
             code_found = None
-            def on_sponsor_resp(res):
-                nonlocal code_found
-                if "get_quest_code.html" in res.url:
-                    try:
-                        data = res.json()
-                        log(f"[+] INTERCEPTED get_quest_code: {data}")
-                        if data.get("success"):
-                            if "id" in data:
-                                log(f"[+] Quest ID captured: {data['id']}")
-                            else:
-                                code_found = data.get("html")
-                                log(f"🎉 EXTRACTED SPONSOR CODE FROM API: {code_found}")
-                    except Exception as e:
-                        log(f"[!] Sponsor resp parse error: {e}")
 
-            page_sponsor.on("response", on_sponsor_resp)
-
-            current_step = 1
-            max_steps = 3
-            visited_urls = set([sponsor_url.rstrip("/")])
-
-            while current_step <= max_steps and not code_found:
-                log(f"\n==========================================")
-                log(f"[*] EXECUTING STEP {current_step} ON SPONSOR SITE")
-                log(f"==========================================")
-
-                if current_step > 1:
-                    article_target = None
-                    try:
-                        links = page_sponsor.locator("a[href^='https://']").all()
-                        for a in links:
-                            h = a.get_attribute("href") or ""
-                            h_clean = h.rstrip("/")
-                            if sponsor_url in h and h_clean not in visited_urls and not any(x in h for x in [".jpg", ".png", ".webp", ".css", ".js", "feed", "wp-", "#"]):
-                                article_target = h
-                                visited_urls.add(h_clean)
-                                break
-                    except Exception:
-                        pass
-
-                    if not article_target:
-                        article_target = sponsor_url + f"/bai-viet-{current_step}/"
-                        visited_urls.add(article_target.rstrip("/"))
-
-                    log(f"[*] Navigating to Step {current_step} article: {article_target}")
-                    try:
-                        page_sponsor.goto(article_target, wait_until="domcontentloaded", timeout=45000)
-                    except Exception as e:
-                        log(f"[!] Warning on article navigation: {e}")
-                    time.sleep(2)
-
-                page_sponsor.evaluate("""() => {
-                    document.querySelectorAll('script[type="rocketlazyloadscript"]').forEach(s => {
-                        const newScript = document.createElement('script');
-                        if (s.hasAttribute('data-rocket-src')) {
-                            let src = s.getAttribute('data-rocket-src');
-                            if (src.startsWith('//')) src = 'https:' + src;
-                            newScript.src = src;
-                        } else {
-                            newScript.textContent = s.textContent;
-                        }
-                        document.body.appendChild(newScript);
-                    });
-                }""")
-                time.sleep(1.5)
-
-                if traffic_key:
-                    page_sponsor.evaluate(f"() => {{ window.location.hash = '#ss-{traffic_key}'; if (typeof forceShowButton === 'function') forceShowButton(); }}")
-                    time.sleep(1.5)
-
-                page_sponsor.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                time.sleep(1)
-
-                btn = page_sponsor.locator(btn_selector)
-                if btn.count() == 0:
-                    log(f"[!] Step {current_step}: Button not found immediately, scrolling more...")
-                    page_sponsor.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    time.sleep(2)
-                    btn = page_sponsor.locator(btn_selector)
-
-                if btn.count() == 0:
-                    log(f"[!] Step {current_step}: Button still not found. Skipping...")
-                    break
-
-                log(f"[+] Step {current_step}: Button located. Clicking...")
-                page_sponsor.evaluate("() => document.querySelectorAll('#hpps-popup, .hpps-popup, .popup, .modal, [class*=\"popup\"], [id*=\"popup\"]').forEach(e => e.remove())")
-                try:
-                    btn.first.click(force=True)
-                except Exception:
-                    btn.first.evaluate("el => el.click()")
-                time.sleep(2)
-
-                detected_sec = page_sponsor.evaluate(f"() => {{ const el = document.getElementById('{traffic_key}'); return el && el.dataset.time ? parseFloat(el.dataset.time) : 60; }}")
-                log(f"[*] Step {current_step}: Detected countdown duration = {detected_sec}s")
-                max_wait_seconds = int(detected_sec) + 30
-
-                dir_wheel = 1
-                for sec in range(1, max_wait_seconds + 1):
-                    time.sleep(1)
-                    dir_wheel = -dir_wheel if sec % 5 == 0 else dir_wheel
-                    delta = 120 * dir_wheel
-                    page_sponsor.mouse.wheel(0, delta)
-                    page_sponsor.evaluate(f"() => {{ window.scrollBy(0, {delta}); window.dispatchEvent(new Event('scroll')); window.dispatchEvent(new Event('mousewheel')); }}")
-
-                    rem = page_sponsor.evaluate(f"() => {{ const el = document.getElementById('{traffic_key}'); return el && el.dataset.time ? parseFloat(el.dataset.time) : null; }}")
-                    if sec % 5 == 0 or (rem is not None and rem <= 5):
-                        log(f"  [Step {current_step} - {sec}s] Remaining: {rem}s")
-
-                    if code_found:
-                        log(f"🎉 Code acquired during Step {current_step} at {sec}s!")
-                        break
-
-                    has_quest = page_sponsor.evaluate("() => { for (let k in localStorage) { if (k.includes('_quest')) return true; } return false; }")
-                    if rem is not None and rem <= 0:
-                        time.sleep(2)
-                        if code_found or has_quest:
-                            log(f"[+] Step {current_step} countdown completed at {sec}s!")
-                            break
-
-                if not code_found:
-                    current_step += 1
+            if cached_code:
+                log(f"⚡ [CACHE HIT] Found active cached code '{cached_code}' for {sponsor_domain}!")
+                log("⚡ [INSTANT BYPASS] Skipping sponsor website & 60s countdown (0s wait)!")
+                code_found = cached_code
+            else:
+                code_found = harvest_code_browser(context, sponsor_url)
 
             if not code_found:
-                body_text = page_sponsor.evaluate("() => document.body.innerText")
-                m_body = re.search(r'(?:M[ãa]\s*KM|M[ãa]\s*x[áa]c\s*nh[ậa]n|Code)[\s\:\-]+([A-Za-z0-9]{4,8})', body_text)
-                if m_body:
-                    code_found = m_body.group(1)
-                    log(f"[+] FOUND CODE IN BODY TEXT: {code_found}")
-
-            if not code_found:
-                log("[!] Could not extract code. Exiting...")
+                log('[!] Could not extract code. Exiting...')
                 browser.close()
                 return
+
+            save_cache(sponsor_domain, code_found)
 
             log(f"\n==========================================")
             log(f"🎉 SUCCESS! EXTRACTED SPONSOR CODE: {code_found}")

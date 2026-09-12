@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..");
+const HEADLESS_PATH = path.join(ROOT_DIR, "src", "core", "headless_bypass.py");
 const SCRIPT_PATH = path.join(ROOT_DIR, "src", "core", "bypass.py");
 const DEST_FILE = path.join(ROOT_DIR, "destination_url.txt");
 const CODE_FILE = path.join(ROOT_DIR, "extracted_code.txt");
@@ -64,8 +65,8 @@ function printBanner() {
     console.log(`${c.yellow}  ███    ███   ███    █▄  ▀███████████   ███    █▄    ███    ███ `);
     console.log(`${c.orange}  ███    ███   ███    ███   ███    ███   ███    ███   ███    ███ `);
     console.log(`${c.red}  ███    █▀    ██████████   ███    ███   ██████████   ███    █▀  ${c.reset}`);
-    console.log(`\n  ${c.bright}${c.cyan}⚡ LINK4M ULTIMATE BYPASS SUITE - 100% FREE AUTOMATION ⚡${c.reset}`);
-    console.log(`  ${c.dim}${c.white}Offline Whisper AI Captcha • RapidOCR Vision • Adaptive Multi-Step Engine${c.reset}\n`);
+    console.log(`\n  ${c.bright}${c.cyan}⚡ LINK4M ULTIMATE BYPASS SUITE - HEADLESS PROTOCOL & CACHE ⚡${c.reset}`);
+    console.log(`  ${c.dim}${c.white}Offline Whisper AI Captcha • RapidOCR Vision • 0s Cache Bypass • Headless Engine${c.reset}\n`);
 }
 
 function formatLogLine(rawLine) {
@@ -80,8 +81,17 @@ function formatLogLine(rawLine) {
         const url = line.split("Target Link4M URL:")[1].trim();
         return `  ${c.purple}╭─[ MỤC TIÊU ]${c.reset}  ${c.cyan}${c.bright}${url}${c.reset}`;
     }
-    if (line.includes("Analyzing active sponsor")) {
+    if (line.includes("Analyzing active sponsor") || line.includes("Analyzing Link4M page mode")) {
         return `  ${c.blue}├─[ PHÂN TÍCH ]${c.reset} Đang nhận diện chiến dịch tài trợ trên Link4M...`;
+    }
+    if (line.includes("CACHE HIT") || line.includes("Instant bypass")) {
+        return `  ${c.green}${c.bright}├─[ CACHE 0s ]${c.reset}  Mã đã lưu sẵn -> Bỏ qua đếm ngược!`;
+    }
+    if (line.includes("Headless Protocol Engine") || line.includes("impersonating Chrome")) {
+        return `  ${c.cyan}├─[ ENGINE ]${c.reset}    Headless Protocol (curl_cffi + micro-worker)`;
+    }
+    if (line.includes("Micro-Worker")) {
+        return `  ${c.blue}├─[ WORKER ]${c.reset}    Chrome headless, chặn ảnh/font, RAM thấp`;
     }
     if (line.includes("Found sponsor SERP image:")) {
         return `  ${c.blue}├─[ OCR VISION ]${c.reset} Tìm thấy ảnh nhiệm vụ -> Đang đọc domain tài trợ...`;
@@ -171,9 +181,12 @@ function runBypass(targetUrl) {
         }
 
         const PYD_FILE = path.join(ROOT_DIR, "src", "core", "bypass.pyd");
-        const pythonArgs = fs.existsSync(SCRIPT_PATH)
-            ? ["-u", "-X", "utf8", SCRIPT_PATH, targetUrl]
-            : ["-u", "-X", "utf8", "-c", "import sys, os; sys.path.insert(0, os.path.abspath('src/core')); import bypass; bypass.run(sys.argv[1])", targetUrl];
+        const enginePath = fs.existsSync(HEADLESS_PATH)
+            ? HEADLESS_PATH
+            : (fs.existsSync(SCRIPT_PATH) ? SCRIPT_PATH : null);
+        const pythonArgs = enginePath
+            ? ["-u", "-X", "utf8", enginePath, targetUrl]
+            : ["-u", "-X", "utf8", "-c", "import sys, os; sys.path.insert(0, os.path.abspath('src/core')); import headless_bypass as bypass; bypass.run(sys.argv[1])", targetUrl];
 
         const proc = spawn(getPythonPath(), pythonArgs, {
             cwd: ROOT_DIR,
