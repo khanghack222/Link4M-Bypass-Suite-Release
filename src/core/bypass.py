@@ -219,19 +219,39 @@ def run(target_url: str = None):
                 log(f"[*] Found sponsor SERP image: {src}")
                 img_bytes = None
                 try:
-                    img_bytes = target_img_element.screenshot()
+                    resp = page_link.request.get(src, timeout=10000)
+                    if resp.ok:
+                        img_bytes = resp.body()
                 except Exception:
                     pass
                 if not img_bytes:
                     try:
-                        resp = page_link.request.get(src)
-                        if resp.ok:
-                            img_bytes = resp.body()
+                        img_bytes = target_img_element.screenshot()
                     except Exception:
                         pass
 
                 if img_bytes:
-                    res, _ = ocr(img_bytes)
+                    res = None
+                    try:
+                        from PIL import Image
+                        import io
+                        pil_img = Image.open(io.BytesIO(img_bytes))
+                        w, h = pil_img.size
+                        # Smart crop top 45% (URL and title section) to speed up OCR 2.5x
+                        cropped = pil_img.crop((0, 0, w, int(h * 0.45)))
+                        buf = io.BytesIO()
+                        cropped.save(buf, format="JPEG", quality=85)
+                        res, _ = ocr(buf.getvalue())
+                    except Exception:
+                        res, _ = ocr(img_bytes)
+
+                    # Fallback to full image if cropped OCR returned nothing
+                    if not res:
+                        try:
+                            res, _ = ocr(img_bytes)
+                        except Exception:
+                            pass
+
                     if res:
                         TLD_REGEX = r'(?:com|net|vn|org|info|biz|ltd|co|io|in|cc|me|live|pro|club|tech|site|online|top|vip|win|app|xyz|tv|us|uk|ws|space|store|bet|game|games|asia|link|click|icu|pw|work|one|news|today|blog|us\.com|jpn\.com|za\.com|uk\.com|us\.org)'
                         candidates = []
