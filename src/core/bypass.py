@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 sys.stdout.reconfigure(encoding="utf-8")
 import os
 import time
@@ -13,20 +13,24 @@ def is_valid_destination(u: str) -> bool:
         return False
     return not any(d in u for d in ["link4m.org", "link4m.net", "link4m.co", "link4m.me", "about:blank"])
 
-def run(target_url: str = None):
+def run(target_url: str = None, headless: bool = False):
     if not target_url:
         target_url = sys.argv[1].strip() if len(sys.argv) > 1 else "https://link4m.net/go/2kCcIqn"
+
+    # Check CLI flags
+    if "--headless" in sys.argv or os.environ.get("LINK4M_HEADLESS") == "1":
+        headless = True
 
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write("=== STARTING DYNAMIC E2E AUTOMATION ===\n")
 
     log(f"[*] Target Link4M URL: {target_url}")
-    log("[*] Starting high-performance automation engine...")
+    log(f"[*] Starting automation engine (Headless: {headless})...")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
             executable_path=CHROME_PATH,
-            headless=False,
+            headless=headless,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -45,10 +49,56 @@ def run(target_url: str = None):
             ignore_https_errors=True
         )
         context.add_init_script("""
+            // 1. Quota & Webdriver bypass
             if (window.navigator && window.navigator.webkitTemporaryStorage) {
                 window.navigator.webkitTemporaryStorage.queryUsageAndQuota = (s) => { if (typeof s === 'function') s(0, 500*1024*1024*1024); };
             }
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+
+            // 2. Fake Google Referrer
+            try {
+                Object.defineProperty(document, 'referrer', {
+                    get: () => 'https://www.google.com/',
+                    configurable: true
+                });
+            } catch (e) {}
+
+            // 3. Always Active (Anti-Blur / Anti-Tab Switch / Fake Visibility)
+            try {
+                Object.defineProperty(document, 'hidden', {
+                    get: () => false,
+                    configurable: true
+                });
+
+                Object.defineProperty(document, 'visibilityState', {
+                    get: () => 'visible',
+                    configurable: true
+                });
+
+                Object.defineProperty(document, 'webkitVisibilityState', {
+                    get: () => 'visible',
+                    configurable: true
+                });
+
+                window.hasFocus = () => true;
+
+                const blockedEvents = [
+                    'visibilitychange',
+                    'webkitvisibilitychange',
+                    'blur',
+                    'mouseleave'
+                ];
+
+                blockedEvents.forEach(eventType => {
+                    window.addEventListener(eventType, (e) => {
+                        e.stopImmediatePropagation();
+                    }, true);
+
+                    document.addEventListener(eventType, (e) => {
+                        e.stopImmediatePropagation();
+                    }, true);
+                });
+            } catch (e) {}
         """)
 
         page_link = context.new_page()

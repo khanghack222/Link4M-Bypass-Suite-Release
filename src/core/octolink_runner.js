@@ -8,8 +8,37 @@ const fs = require('fs');
 const path = require('path');
 const { execSync, execFileSync } = require('child_process');
 
-const CHROME_PATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const PYTHON_PATH = 'C:\\Users\\XUAN\\AppData\\Local\\Programs\\Python\\Python311\\python.exe';
+function getDynamicChromePath() {
+  const candidates = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe'),
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return 'chrome.exe';
+}
+
+function getDynamicPythonPath() {
+  const candidates = [
+    'C:\\Users\\XUAN\\AppData\\Local\\Programs\\Python\\Python311\\python.exe',
+    path.join(process.env.LOCALAPPDATA || '', 'Programs\\Python\\Python311\\python.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs\\Python\\Python312\\python.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs\\Python\\Python310\\python.exe'),
+    'C:\\Python311\\python.exe',
+    'C:\\Python312\\python.exe'
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return 'python';
+}
+
+const CHROME_PATH = getDynamicChromePath();
+const PYTHON_PATH = getDynamicPythonPath();
 const OCR_HELPER = path.join(__dirname, 'ocr_helper.py');
 
 // Danh sách domain đã xác nhận 100%
@@ -137,6 +166,33 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
           sessionStorage.setItem('from_google', '1');
         } catch (e) {}
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+
+        // Fake Google Referrer cho web camp, nhưng giữ Referer Web Camp khi vào octolink.vip/finish
+        try {
+          Object.defineProperty(document, 'referrer', {
+            get: () => {
+              if (window.location.hostname.includes('octolink.vip')) {
+                return window.__lastCampUrl || 'https://www.google.com/';
+              }
+              return 'https://www.google.com/';
+            },
+            configurable: true
+          });
+        } catch (e) {}
+
+        // Always Active & Anti-Blur / Tab Switch
+        try {
+          Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+          Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+          Object.defineProperty(document, 'webkitVisibilityState', { get: () => 'visible', configurable: true });
+          window.hasFocus = () => true;
+
+          const blockedEvents = ['visibilitychange', 'webkitvisibilitychange', 'blur', 'mouseleave'];
+          blockedEvents.forEach(eventType => {
+            window.addEventListener(eventType, (e) => { e.stopImmediatePropagation(); }, true);
+            document.addEventListener(eventType, (e) => { e.stopImmediatePropagation(); }, true);
+          });
+        } catch (e) {}
 
         // Hook Canvas arc để bám theo vòng tròn Captcha di chuyển theo thời gian thực
         window.__targetCircle = null;
@@ -930,17 +986,20 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
     const startFinishTime = Date.now();
     let finalUrl = page.url();
 
-    // Giữ kết nối Referer từ web camp
-    const lastCampUrl = page.url().includes(targetDomain) ? page.url() : targetUrl;
+    // Kiểm tra xem đã có tab nào tự động mở trang finish chưa để tránh gọi 2 lần làm cháy token (Black-holed)
+    let activePage = page;
+    const initialPages = await browser.pages();
+    const existingFinishPage = initialPages.find(p => p.url().includes('octolink.vip/finish'));
 
-    // Nếu đã có finishUrl từ API mà trang chưa tự chuyển thì chủ động chuyển sang kèm Header Referer từ web camp
-    if (finishUrlFromApi && !page.url().includes('octolink.vip/finish')) {
-      onLog(`🌐 Đang mở trực tiếp trang Finish từ API với Referer Camp: ${finishUrlFromApi}`);
+    if (existingFinishPage) {
+      activePage = existingFinishPage;
+      onLog(`🌐 Phát hiện tab Finish đã được web camp mở sẵn: ${activePage.url()}`);
+    } else if (finishUrlFromApi && !page.url().includes('octolink.vip/finish')) {
+      onLog(`🌐 Đang mở duy nhất 1 lần trang Finish từ API với Referer Camp: ${finishUrlFromApi}`);
       await page.goto(finishUrlFromApi, { waitUntil: 'domcontentloaded', timeout: 30000, referer: lastCampUrl }).catch(() => {});
-      await sleep(2000);
+      await sleep(1500);
     }
 
-    let activePage = page;
     while (Date.now() - startFinishTime < 120000) {
       const allPages = await browser.pages();
       for (const p of allPages) {
@@ -965,15 +1024,20 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
         break;
       }
 
-      // Kiểm tra nếu bị Referer mismatch, tự động nạp lại với Referer từ web camp
-      const hasRefererMismatch = await activePage.evaluate(() => {
-        return document.body && document.body.innerText.includes('JOB_MISMATCH_REFERER');
+      // Tuyệt đối không reload lại trang /finish/<token> vì đây là single-use token; reload sẽ bị Black-holed 100%!
+      const hasBlackHole = await activePage.evaluate(() => {
+        return document.body && (document.body.innerText.includes('black-holed') || document.body.innerText.includes('không tìm thấy trên máy chủ'));
       }).catch(() => false);
 
-      if (hasRefererMismatch) {
-        onLog(`⚠️ Phát hiện JOB_MISMATCH_REFERER, đang nạp lại với Referer: ${lastCampUrl}...`);
-        await activePage.goto(activePage.url(), { waitUntil: 'domcontentloaded', referer: lastCampUrl }).catch(() => {});
-        await sleep(2000);
+      if (hasBlackHole) {
+        onLog(`⚠️ Phát hiện thông báo Black-holed trên tab hiện tại, đang kiểm tra các tab khác...`);
+        const otherPages = await browser.pages();
+        for (const op of otherPages) {
+          if (op !== activePage && (op.url().includes('octolink.vip') || isValidFinalDestination(op.url(), targetDomain))) {
+            activePage = op;
+            break;
+          }
+        }
       }
 
       if (finalUrl.includes('octolink.vip/finish') || finalUrl.includes('octolink.vip')) {
@@ -1121,55 +1185,47 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
               }
             }).catch(() => {});
 
-            // Kiểm tra trạng thái form trên trang finish
-            const formStatus = await activePage.evaluate(() => {
-              const form = document.getElementById('link-view');
-              const btn = document.getElementById('invisibleCaptchaShortlink');
-              const resp = document.getElementById('hold_captcha_response');
-              return {
-                hasForm: !!form,
-                action: form ? form.action : null,
-                hasBtn: !!btn,
-                btnTag: btn ? btn.tagName : null,
-                btnType: btn ? btn.type : null,
-                hasResp: !!(resp && resp.value)
-              };
-            }).catch(() => ({}));
-            onLog(`📋 [Form Status] Form: ${formStatus.hasForm}, Action: ${formStatus.action}, Btn: ${formStatus.hasBtn} (${formStatus.btnTag}), Token: ${formStatus.hasResp}`);
-
-            // Thử click nút submit tự nhiên trước
-            await activePage.evaluate(() => {
-              const btn = document.getElementById('invisibleCaptchaShortlink');
-              if (btn && typeof btn.click === 'function') {
-                btn.click();
-              }
-            }).catch(() => {});
-
-            // Chờ xem trang có điều hướng hoặc xuất hiện view Get-Link không
+            // Chờ tối đa 12s xem trang có tự chuyển sang view Get-Link sau khi giải xong Captcha không
             let getLinkReady = false;
-            for (let chk = 0; chk < 8; chk++) {
+            for (let chk = 0; chk < 12; chk++) {
               getLinkReady = await activePage.evaluate(() => {
                 return !!document.getElementById('timer') || !!document.getElementById('go-link') || !!document.querySelector('a.get-link');
               }).catch(() => false);
-              if (getLinkReady) break;
+              if (getLinkReady) {
+                onLog(`✅ Đã xuất hiện giao diện Get-Link sau khi giải Captcha!`);
+                break;
+              }
               await sleep(1000);
             }
 
-            // Nếu vẫn chưa sang view Get-Link, trực tiếp ép submit form #link-view
+            // Nếu trang chưa chuyển và token Captcha vẫn còn trong form, mới kích hoạt submit an toàn
             if (!getLinkReady) {
-              onLog(`⚠️ Trang chưa tự chuyển sau khi click button, trực tiếp ép gửi form #link-view...`);
-              await Promise.all([
-                activePage.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {}),
-                activePage.evaluate(() => {
-                  const form = document.getElementById('link-view');
-                  if (form) {
+              const submitted = await activePage.evaluate(() => {
+                const form = document.getElementById('link-view');
+                const resp = document.getElementById('hold_captcha_response');
+                const btn = document.getElementById('invisibleCaptchaShortlink') || (form ? form.querySelector('button, input[type="submit"]') : null);
+                if (resp && resp.value && resp.value.length > 5) {
+                  if (btn && typeof btn.click === 'function') {
+                    btn.click();
+                    return 'btn_click';
+                  } else if (window.$ && form) {
+                    window.$(form).submit();
+                    return 'jquery_submit';
+                  } else if (form) {
                     HTMLFormElement.prototype.submit.call(form);
+                    return 'native_submit';
                   }
-                }).catch(() => {})
-              ]);
+                }
+                return false;
+              }).catch(() => false);
+
+              if (submitted) {
+                onLog(`🚀 Đã kích hoạt gửi kết quả Captcha (${submitted}), chờ tải view Get-Link...`);
+                await sleep(3000);
+              }
             }
 
-            // Kiểm tra xem đã sang view Get-Link chưa hoặc có lỗi gì
+            // Kiểm tra trạng thái view Get-Link
             const viewCheck = await activePage.evaluate(() => {
               const hasTimer = !!document.getElementById('timer');
               const hasGoLink = !!document.getElementById('go-link');
