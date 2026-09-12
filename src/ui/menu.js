@@ -6,6 +6,7 @@ const path = require("path");
 const ROOT_DIR = path.resolve(__dirname, "..", "..");
 const SCRIPT_PATH = path.join(ROOT_DIR, "src", "core", "bypass.py");
 const DEST_FILE = path.join(ROOT_DIR, "destination_url.txt");
+const OCTO_RUNNER = path.join(ROOT_DIR, "src", "core", "octolink_runner.js");
 
 function getPythonPath() {
     const candidates = [
@@ -26,12 +27,20 @@ function getClipboardUrl() {
     try {
         if (process.platform === "win32") {
             const out = execSync("powershell -NoProfile -Command Get-Clipboard", { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], timeout: 1500 }).trim();
-            if (out && (out.includes("link4m") || out.startsWith("http"))) {
+            if (out && (out.includes("link4m") || out.includes("octolink") || out.startsWith("http"))) {
                 return out.split(/\r?\n/)[0].trim();
             }
         }
     } catch (e) {}
     return "";
+}
+
+function copyToClipboard(text) {
+    try {
+        if (process.platform === "win32") {
+            execSync("clip", { input: text.trim(), encoding: "utf-8", stdio: ["pipe", "ignore", "ignore"] });
+        }
+    } catch (e) {}
 }
 
 const c = {
@@ -66,8 +75,8 @@ function printBanner() {
     console.log(`${c.yellow}  ███    ███   ███    █▄  ▀███████████   ███    █▄    ███    ███ `);
     console.log(`${c.orange}  ███    ███   ███    ███   ███    ███   ███    ███   ███    ███ `);
     console.log(`${c.red}  ███    █▀    ██████████   ███    ███   ██████████   ███    █▀  ${c.reset}`);
-    console.log(`\n  ${c.bright}${c.cyan}⚡ LINK4M ULTIMATE BYPASS SUITE - 100% FREE AUTOMATION ⚡${c.reset}`);
-    console.log(`  ${c.dim}${c.white}Whisper AI Captcha • RapidOCR Vision • Clipboard Auto-Detect${c.reset}\n`);
+    console.log(`\n  ${c.bright}${c.cyan}⚡ DUAL SHORTLINK BYPASS SUITE - LINK4M & OCTOLINK AUTO ⚡${c.reset}`);
+    console.log(`  ${c.dim}${c.white}Whisper AI Captcha • Canvas Hold Captcha • RapidOCR • 100% Free${c.reset}\n`);
 }
 
 function formatLogLine(rawLine) {
@@ -125,7 +134,7 @@ function ask(question) {
     return new Promise((resolve) => rl.question(question, (ans) => { rl.close(); resolve(ans.trim()); }));
 }
 
-function runBypass(targetUrl) {
+function runBypassLink4M(targetUrl) {
     return new Promise((resolve) => {
         clearScreen();
         printBanner();
@@ -179,6 +188,7 @@ function runBypass(targetUrl) {
                 console.log(`  ${c.green}│${c.reset}  ${c.bright}${c.white}Link đích:${c.reset} ${c.cyan}${c.bright}${finalUrl}${c.reset}`);
                 console.log(`  ${c.green}│${c.reset}  ${c.green}✔ Đã tự động sao chép vào Clipboard (Ctrl+V để dán)!${c.reset}`);
                 console.log(`  ${c.green}╰─────────────────────────────────────────────────────────────────────────────╯${c.reset}\n`);
+                copyToClipboard(finalUrl);
             } else if (code === 0) {
                 console.log(`  ${c.yellow}⚠ Đã hoàn tất nhưng chưa lấy được link đích.${c.reset}\n`);
             } else {
@@ -194,14 +204,53 @@ function runBypass(targetUrl) {
     });
 }
 
+async function runBypassOctolink(targetUrl) {
+    clearScreen();
+    printBanner();
+
+    console.log(`  ${c.pink}▶ ${c.bright}BẮT ĐẦU VƯỢT OCTOLINK TỰ ĐỘNG (CANVAS PHYSICS ENGINE)${c.reset}\n`);
+    console.log(`  ${c.purple}╭─────────────────────────────────────────────────────────────────────────────╮${c.reset}`);
+    console.log(`  ${c.purple}│${c.reset}  ${c.yellow}${c.bright}TIẾN TRÌNH THỰC THI (OCTOLINK LIVE FEED)${c.reset}                                 ${c.purple}│${c.reset}`);
+    console.log(`  ${c.purple}├─────────────────────────────────────────────────────────────────────────────┤${c.reset}`);
+
+    if (!fs.existsSync(OCTO_RUNNER)) {
+        console.log(`  ${c.red}❌ Không tìm thấy module Octolink tại: ${OCTO_RUNNER}${c.reset}\n`);
+        return;
+    }
+
+    try {
+        const { runBypass } = require(OCTO_RUNNER);
+        const res = await runBypass(targetUrl, { headless: false }, (msg) => {
+            console.log(`  ${c.dim}│  ${msg}${c.reset}`);
+        });
+
+        console.log(`  ${c.purple}╰─────────────────────────────────────────────────────────────────────────────╯${c.reset}\n`);
+
+        if (res && res.success && res.finalUrl) {
+            console.log(`  ${c.green}╭─────────────────────────────────────────────────────────────────────────────╮${c.reset}`);
+            console.log(`  ${c.green}│${c.reset}  ${c.bright}${c.white}Link đích Octolink:${c.reset} ${c.cyan}${c.bright}${res.finalUrl}${c.reset}`);
+            console.log(`  ${c.green}│${c.reset}  ${c.green}✔ Đã tự động sao chép vào Clipboard (Ctrl+V để dán)!${c.reset}`);
+            console.log(`  ${c.green}╰─────────────────────────────────────────────────────────────────────────────╯${c.reset}\n`);
+            copyToClipboard(res.finalUrl);
+        } else {
+            console.log(`  ${c.yellow}⚠ Quá trình kết thúc: ${res?.reason || res?.error || "Chưa lấy được link callback"}${c.reset}\n`);
+        }
+    } catch (e) {
+        console.log(`  ${c.purple}╰─────────────────────────────────────────────────────────────────────────────╯${c.reset}\n`);
+        console.error(`  ${c.red}❌ Lỗi khi vượt Octolink: ${e.message}${c.reset}\n`);
+    }
+}
+
 async function main() {
     while (true) {
         clearScreen();
         printBanner();
 
         console.log(`  ${c.purple}╭─────────────────────────────────────────────────────────────────────────────╮${c.reset}`);
-        console.log(`  ${c.purple}│${c.reset}  [1] Vượt link Link4M (Tự nhận link từ Clipboard hoặc nhập mới)             ${c.purple}│${c.reset}`);
-        console.log(`  ${c.purple}│${c.reset}  [2] Hướng dẫn & Giới thiệu                                                  ${c.purple}│${c.reset}`);
+        console.log(`  ${c.purple}│${c.reset}  [1] Tự động nhận diện link (Hỗ trợ cả Link4M & Octolink từ Clipboard)       ${c.purple}│${c.reset}`);
+        console.log(`  ${c.purple}│${c.reset}  [2] Vượt Link4M chuyên biệt (Whisper AI Offline)                            ${c.purple}│${c.reset}`);
+        console.log(`  ${c.purple}│${c.reset}  [3] Vượt Octolink chuyên biệt (Canvas Physics Hold Captcha)                 ${c.purple}│${c.reset}`);
+        console.log(`  ${c.purple}│${c.reset}  [4] Hướng dẫn & Giới thiệu                                                  ${c.purple}│${c.reset}`);
         console.log(`  ${c.purple}│${c.reset}  [0] Thoát                                                                   ${c.purple}│${c.reset}`);
         console.log(`  ${c.purple}╰─────────────────────────────────────────────────────────────────────────────╯${c.reset}\n`);
 
@@ -211,23 +260,43 @@ async function main() {
             process.exit(0);
         }
 
-        if (choice === "2") {
+        if (choice === "4") {
             clearScreen();
             printBanner();
-            console.log(`  ${c.cyan}THÔNG TIN BỘ CÔNG CỤ:${c.reset}`);
-            console.log(`  • 100% Free: Whisper AI offline giải Captcha audio, RapidOCR nhận diện ảnh.`);
-            console.log(`  • Tự động vượt qua tất cả các bước đếm ngược và lấy link đích.`);
-            console.log(`  • Tự động bắt link từ Clipboard và tự động copy link đích khi xong.\n`);
+            console.log(`  ${c.cyan}THÔNG TIN BỘ CÔNG CỤ TỔNG HỢP (LINK4M + OCTOLINK):${c.reset}`);
+            console.log(`  • Link4M: Giải reCAPTCHA v2 bằng Whisper AI offline, RapidOCR nhận diện ảnh.`);
+            console.log(`  • Octolink: Vượt Device Gate, hook Canvas 2D arc bám mục tiêu Hold Captcha.`);
+            console.log(`  • Tự động bắt link từ Clipboard và tự động copy kết quả khi xong.\n`);
             await ask(`  ${c.yellow}Nhấn Enter để quay lại menu chính...${c.reset}`);
             continue;
         }
 
         const clipUrl = getClipboardUrl();
-        const hint = clipUrl ? ` (Enter để dùng: ${c.green}${clipUrl}${c.reset})` : "";
-        let link = await ask(`\n  ${c.cyan}Nhập link Link4M cần vượt${hint}: ${c.reset}`);
-        if (!link) link = clipUrl || "https://link4m.net/go/2kCcIqn";
+        let defaultHint = clipUrl || "https://link4m.net/go/2kCcIqn";
 
-        await runBypass(link);
+        if (choice === "3") {
+            const hint = clipUrl && clipUrl.includes("octolink") ? ` (Enter để dùng: ${c.green}${clipUrl}${c.reset})` : " (Enter để dùng: https://octolink.vip/K3r4k5)";
+            let link = await ask(`\n  ${c.pink}Nhập link Octolink cần vượt${hint}: ${c.reset}`);
+            if (!link) link = (clipUrl && clipUrl.includes("octolink")) ? clipUrl : "https://octolink.vip/K3r4k5";
+            await runBypassOctolink(link);
+        } else if (choice === "2") {
+            const hint = clipUrl && clipUrl.includes("link4m") ? ` (Enter để dùng: ${c.green}${clipUrl}${c.reset})` : " (Enter để dùng: https://link4m.net/go/2kCcIqn)";
+            let link = await ask(`\n  ${c.cyan}Nhập link Link4M cần vượt${hint}: ${c.reset}`);
+            if (!link) link = (clipUrl && clipUrl.includes("link4m")) ? clipUrl : "https://link4m.net/go/2kCcIqn";
+            await runBypassLink4M(link);
+        } else {
+            // Chế độ tự động thông minh: nhận diện dựa vào URL
+            const hint = clipUrl ? ` (Enter để dùng: ${c.green}${clipUrl}${c.reset})` : ` (Enter để dùng: ${defaultHint})`;
+            let link = await ask(`\n  ${c.cyan}Nhập link (Link4M hoặc Octolink)${hint}: ${c.reset}`);
+            if (!link) link = clipUrl || defaultHint;
+
+            if (link.includes("octolink.vip") || link.includes("octolink")) {
+                await runBypassOctolink(link);
+            } else {
+                await runBypassLink4M(link);
+            }
+        }
+
         const next = await ask(`  ${c.yellow}╭─[ Nhấn Enter để vượt link tiếp theo (hoặc gõ 'q' để thoát) ]\n  ╰──➤ ${c.reset}`);
         if (next.toLowerCase() === "q") {
             console.log(`\n  ${c.green}Tạm biệt! Hẹn gặp lại.${c.reset}\n`);
