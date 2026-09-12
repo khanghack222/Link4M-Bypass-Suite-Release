@@ -4,13 +4,18 @@ import urllib.request
 from rapidocr_onnxruntime import RapidOCR
 from config import log
 
-ocr_engine = RapidOCR()
+_OCR_INSTANCE = None
+def get_ocr():
+    global _OCR_INSTANCE
+    if _OCR_INSTANCE is None:
+        _OCR_INSTANCE = RapidOCR()
+    return _OCR_INSTANCE
+
 TLD_REGEX = r'(?:com|net|vn|org|info|biz|ltd|co|io|in|cc|me|live|pro|club|tech|site|online|top|vip|win|app|xyz|tv|us|uk|ws|space|store|bet|game|games|asia|link|click|icu|pw|work|one|news|today|blog|us\.com|jpn\.com|za\.com|uk\.com|us\.org)'
 
 def detect_sponsor_domain(page_link) -> str:
-    """Detect sponsor domain from Link4M SERP image using RapidOCR."""
     target_img = None
-    for _ in range(6):
+    for _ in range(5):
         for img in page_link.locator("img").all():
             src = img.get_attribute("src") or ""
             if "img.link4m.net" in src and "/1_" in src:
@@ -18,14 +23,14 @@ def detect_sponsor_domain(page_link) -> str:
                 break
         if target_img:
             break
-        time.sleep(1)
+        time.sleep(0.8)
 
     if not target_img:
         return ""
 
     src = target_img.get_attribute("src") or ""
     log(f"[*] Found sponsor SERP image: {src}")
-    
+
     img_bytes = None
     try:
         img_bytes = target_img.screenshot()
@@ -42,7 +47,7 @@ def detect_sponsor_domain(page_link) -> str:
     if not img_bytes:
         return ""
 
-    res, _ = ocr_engine(img_bytes)
+    res, _ = get_ocr()(img_bytes)
     if not res:
         return ""
 
@@ -57,14 +62,13 @@ def detect_sponsor_domain(page_link) -> str:
                 candidates.append(d)
 
     filtered = [c for c in candidates if c not in ["uk.com", "us.com", "jpn.com", "za.com", "us.org"]]
-    log(f"[*] Extracted domain candidates from OCR: {filtered}")
+    log(f"[*] OCR domain candidates: {filtered}")
 
-    # Fast verify top candidate
     for c in filtered:
         test_u = f"https://{c}"
         try:
             req = urllib.request.Request(test_u, headers={"User-Agent": "Mozilla/5.0"})
-            if urllib.request.urlopen(req, timeout=4).getcode() in (200, 301, 302):
+            if urllib.request.urlopen(req, timeout=3.5).getcode() in (200, 301, 302):
                 log(f"[+] Verified active sponsor website: {test_u}")
                 return test_u
         except Exception:
@@ -73,22 +77,18 @@ def detect_sponsor_domain(page_link) -> str:
     return f"https://{filtered[0]}" if filtered else ""
 
 def solve_sponsor_quest(context, sponsor_url: str) -> str:
-    """Execute multi-step mission on sponsor website and return extracted code."""
     log(f"[*] Opening sponsor site via Google referrer: {sponsor_url}")
     page = context.new_page()
-    try:
-        page.goto("https://www.google.com", wait_until="domcontentloaded", timeout=20000)
-    except Exception:
-        pass
-    time.sleep(1)
+
+    # Fast route optimization: abort images/media on sponsor to cut RAM & load time
+    page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
 
     try:
-        page.goto(sponsor_url, wait_until="domcontentloaded", referer="https://www.google.com/", timeout=45000)
+        page.goto(sponsor_url, wait_until="domcontentloaded", referer="https://www.google.com/", timeout=40000)
     except Exception as e:
-        log(f"[!] Warning navigating to sponsor: {e}")
-    time.sleep(2)
+        log(f"[!] Sponsor goto note: {e}")
+    time.sleep(1.5)
 
-    # Detect traffic key
     html = page.content()
     m_key = re.search(r'(?:what-on\.com|website-analytics\.net|traffic)[^"\']*?key=([a-zA-Z0-9]+)', html)
     traffic_key = m_key.group(1) if m_key else None
@@ -99,7 +99,7 @@ def solve_sponsor_quest(context, sponsor_url: str) -> str:
     log(f"[*] Detected traffic_key: {traffic_key}")
 
     code_found = None
-    def on_response(res):
+    def on_resp(res):
         nonlocal code_found
         if "get_quest_code.html" in res.url:
             try:
@@ -109,27 +109,29 @@ def solve_sponsor_quest(context, sponsor_url: str) -> str:
                     log(f"🎉 EXTRACTED SPONSOR CODE FROM API: {code_found}")
             except Exception:
                 pass
-    page.on("response", on_response)
+    page.on("response", on_resp)
 
     btn_sel = f"[id='{traffic_key}'] button, [id='{traffic_key}'] a, [id='{traffic_key}'], button:has-text('LẤY MÃ'), button:has-text('LAY MA'), a:has-text('LẤY MÃ'), .whatoncode" if traffic_key else "button:has-text('LẤY MÃ'), button:has-text('LAY MA'), a:has-text('LẤY MÃ'), .whatoncode"
 
-    def prep_page():
-        page.evaluate("""() => {
-            document.querySelectorAll('script[type="rocketlazyloadscript"]').forEach(s => {
+    def prep():
+        page.evaluate(f"""() => {{
+            document.querySelectorAll('script[type="rocketlazyloadscript"]').forEach(s => {{
                 const ns = document.createElement('script');
-                if (s.hasAttribute('data-rocket-src')) {
+                if (s.hasAttribute('data-rocket-src')) {{
                     let src = s.getAttribute('data-rocket-src');
                     ns.src = src.startsWith('//') ? 'https:' + src : src;
-                } else {
+                }} else {{
                     ns.textContent = s.textContent;
-                }
+                }}
                 document.body.appendChild(ns);
-            });
-            document.querySelectorAll('#hpps-popup, .hpps-popup, .popup, .modal, [class*=\"popup\"]').forEach(e => e.remove());
-        }""")
-        if traffic_key:
-            page.evaluate(f"() => {{ window.location.hash = '#ss-{traffic_key}'; if (typeof forceShowButton === 'function') forceShowButton(); }}")
-        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            }});
+            document.querySelectorAll('#hpps-popup, .hpps-popup, .popup, .modal, [class*="popup"]').forEach(e => e.remove());
+            if ('{traffic_key}') {{
+                window.location.hash = '#ss-{traffic_key}';
+                if (typeof forceShowButton === 'function') forceShowButton();
+            }}
+            window.scrollTo(0, document.body.scrollHeight);
+        }}""")
 
     visited = {sponsor_url.rstrip("/")}
     for step in range(1, 4):
@@ -153,18 +155,18 @@ def solve_sponsor_quest(context, sponsor_url: str) -> str:
                 visited.add(article.rstrip("/"))
             log(f"[*] Navigating to Step {step} article: {article}")
             try:
-                page.goto(article, wait_until="domcontentloaded", timeout=40000)
+                page.goto(article, wait_until="domcontentloaded", timeout=35000)
             except Exception:
                 pass
-            time.sleep(2)
+            time.sleep(1.5)
 
-        prep_page()
-        time.sleep(1.5)
+        prep()
+        time.sleep(1.2)
 
         btn = page.locator(btn_sel).first
         if btn.count() == 0:
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(1.5)
+            time.sleep(1.2)
             btn = page.locator(btn_sel).first
 
         if btn.count() == 0:
@@ -176,23 +178,23 @@ def solve_sponsor_quest(context, sponsor_url: str) -> str:
             btn.click(force=True)
         except Exception:
             btn.evaluate("el => el.click()")
-        time.sleep(2)
+        time.sleep(1.5)
 
         sec_dur = page.evaluate(f"() => {{ const el = document.getElementById('{traffic_key}'); return el && el.dataset.time ? parseFloat(el.dataset.time) : 60; }}")
         log(f"[*] Step {step}: Countdown duration = {sec_dur}s")
 
         dir_wheel = 1
-        for sec in range(1, int(sec_dur) + 30):
+        for sec in range(1, int(sec_dur) + 25):
             time.sleep(1)
             dir_wheel = -dir_wheel if sec % 5 == 0 else dir_wheel
             page.mouse.wheel(0, 120 * dir_wheel)
-            
+
             rem = page.evaluate(f"() => {{ const el = document.getElementById('{traffic_key}'); return el && el.dataset.time ? parseFloat(el.dataset.time) : null; }}")
             if sec % 5 == 0 or (rem is not None and rem <= 5):
                 log(f"  [Step {step} - {sec}s] Remaining: {rem}s")
 
             if code_found or (rem is not None and rem <= 0):
-                time.sleep(2)
+                time.sleep(1.5)
                 break
 
     if not code_found:
