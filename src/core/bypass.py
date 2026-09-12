@@ -21,7 +21,7 @@ def run(target_url: str = None):
         f.write("=== STARTING DYNAMIC E2E AUTOMATION ===\n")
 
     log(f"[*] Target Link4M URL: {target_url}")
-    log("[*] Starting automation engine...")
+    log("[*] Starting high-performance automation engine...")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -32,7 +32,11 @@ def run(target_url: str = None):
                 "--no-sandbox",
                 "--disable-infobars",
                 "--disable-dev-shm-usage",
-                "--ignore-certificate-errors"
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-renderer-backgrounding",
+                "--no-first-run",
+                "--no-default-browser-check"
             ]
         )
         context = browser.new_context(
@@ -69,9 +73,8 @@ def run(target_url: str = None):
             page_link.goto(target_url, wait_until="domcontentloaded", timeout=40000)
         except Exception as e:
             log(f"[!] Warning on initial goto: {e}")
-        time.sleep(2.5)
+        time.sleep(2.0)
 
-        # Detect direct captcha vs sponsor quest
         has_recaptcha = page_link.locator(".g-recaptcha, iframe[src*='recaptcha']").count() > 0
         has_pwd = page_link.locator("input.password, input[name='password']").count() > 0
         is_direct = has_recaptcha and not has_pwd
@@ -84,7 +87,7 @@ def run(target_url: str = None):
                 solver.solve_on_page(page_link)
             except Exception as e:
                 log(f"[!] AI solver note: {e}")
-            time.sleep(1.5)
+            time.sleep(1.2)
             page_link.evaluate("""() => {
                 if (typeof recaptcha_callback === 'function') recaptcha_callback();
                 else if (typeof checkCaptcha === 'function') checkCaptcha();
@@ -114,7 +117,7 @@ def run(target_url: str = None):
                 pass
 
             page_link.bring_to_front()
-            time.sleep(0.8)
+            time.sleep(0.6)
 
             pwd_input = page_link.locator("input[name='password'], input.password").first
             pwd_input.fill(code_found)
@@ -127,14 +130,13 @@ def run(target_url: str = None):
             except Exception as e:
                 log(f"[!] AI solver note: {e}")
 
-            time.sleep(1.2)
+            time.sleep(1.0)
             if not final_destination_url:
                 page_link.evaluate("""() => {
                     if (window.$ && $('#main-form').length) window.check_form = $('#main-form');
                     if (typeof checkPassword === 'function') checkPassword();
                 }""")
 
-        # Fast poll destination unlock
         log("[*] Waiting for destination URL unlock...")
         for _ in range(12):
             if is_valid_destination(final_destination_url):
@@ -154,7 +156,7 @@ def run(target_url: str = None):
                     btn_link.click(force=True)
                 except Exception:
                     pass
-                time.sleep(2.5)
+                time.sleep(2.0)
             if is_valid_destination(page_link.url):
                 final_destination_url = page_link.url
 
@@ -177,7 +179,7 @@ def run(target_url: str = None):
             pass
 
         log("[*] Full automation completed successfully.")
-        time.sleep(2)
+        time.sleep(1.5)
         browser.close()
 
 if __name__ == "__main__":

@@ -22,6 +22,18 @@ function getPythonPath() {
     return "python";
 }
 
+function getClipboardUrl() {
+    try {
+        if (process.platform === "win32") {
+            const out = execSync("powershell -NoProfile -Command Get-Clipboard", { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], timeout: 1500 }).trim();
+            if (out && (out.includes("link4m") || out.startsWith("http"))) {
+                return out.split(/\r?\n/)[0].trim();
+            }
+        }
+    } catch (e) {}
+    return "";
+}
+
 const c = {
     reset: "\x1b[0m",
     bright: "\x1b[1m",
@@ -55,7 +67,7 @@ function printBanner() {
     console.log(`${c.orange}  ███    ███   ███    ███   ███    ███   ███    ███   ███    ███ `);
     console.log(`${c.red}  ███    █▀    ██████████   ███    ███   ██████████   ███    █▀  ${c.reset}`);
     console.log(`\n  ${c.bright}${c.cyan}⚡ LINK4M ULTIMATE BYPASS SUITE - 100% FREE AUTOMATION ⚡${c.reset}`);
-    console.log(`  ${c.dim}${c.white}Whisper AI Captcha • RapidOCR Vision • Auto Clipboard${c.reset}\n`);
+    console.log(`  ${c.dim}${c.white}Whisper AI Captcha • RapidOCR Vision • Clipboard Auto-Detect${c.reset}\n`);
 }
 
 function formatLogLine(rawLine) {
@@ -188,7 +200,7 @@ async function main() {
         printBanner();
 
         console.log(`  ${c.purple}╭─────────────────────────────────────────────────────────────────────────────╮${c.reset}`);
-        console.log(`  ${c.purple}│${c.reset}  [1] Vượt link Link4M (Nhập link hoặc dán URL)                               ${c.purple}│${c.reset}`);
+        console.log(`  ${c.purple}│${c.reset}  [1] Vượt link Link4M (Tự nhận link từ Clipboard hoặc nhập mới)             ${c.purple}│${c.reset}`);
         console.log(`  ${c.purple}│${c.reset}  [2] Hướng dẫn & Giới thiệu                                                  ${c.purple}│${c.reset}`);
         console.log(`  ${c.purple}│${c.reset}  [0] Thoát                                                                   ${c.purple}│${c.reset}`);
         console.log(`  ${c.purple}╰─────────────────────────────────────────────────────────────────────────────╯${c.reset}\n`);
@@ -205,13 +217,15 @@ async function main() {
             console.log(`  ${c.cyan}THÔNG TIN BỘ CÔNG CỤ:${c.reset}`);
             console.log(`  • 100% Free: Whisper AI offline giải Captcha audio, RapidOCR nhận diện ảnh.`);
             console.log(`  • Tự động vượt qua tất cả các bước đếm ngược và lấy link đích.`);
-            console.log(`  • Tự động copy link đích vào Clipboard sau khi hoàn tất.\n`);
+            console.log(`  • Tự động bắt link từ Clipboard và tự động copy link đích khi xong.\n`);
             await ask(`  ${c.yellow}Nhấn Enter để quay lại menu chính...${c.reset}`);
             continue;
         }
 
-        let link = await ask(`\n  ${c.cyan}Nhập link Link4M cần vượt: ${c.reset}`);
-        if (!link) link = "https://link4m.net/go/2kCcIqn";
+        const clipUrl = getClipboardUrl();
+        const hint = clipUrl ? ` (Enter để dùng: ${c.green}${clipUrl}${c.reset})` : "";
+        let link = await ask(`\n  ${c.cyan}Nhập link Link4M cần vượt${hint}: ${c.reset}`);
+        if (!link) link = clipUrl || "https://link4m.net/go/2kCcIqn";
 
         await runBypass(link);
         const next = await ask(`  ${c.yellow}╭─[ Nhấn Enter để vượt link tiếp theo (hoặc gõ 'q' để thoát) ]\n  ╰──➤ ${c.reset}`);
