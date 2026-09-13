@@ -1,39 +1,78 @@
-﻿# ⚡ Link4M Bypass Suite (AI & Computer Vision Core)
+﻿# ⚡ Link4M Bypass Suite — Native Release Edition
 
-> **CẬP NHẬT QUAN TRỌNG (12/09/2026):**  
-> Toàn bộ dự án và module liên quan đến **Octolink (octolink.vip)** đã chính thức **DỪNG PHÁT TRIỂN & NIÊM PHONG VĨNH VIỄN (ARCHIVED / DEPRECATED)**. Chi tiết thông cáo xem bên dưới.
+[![Release](https://img.shields.io/badge/Release-v2.4%20Native-brightgreen.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://python.org)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20x64-lightgrey.svg)]()
+[![AI](https://img.shields.io/badge/AI%20Solver-OpenAI%20Whisper-orange.svg)](https://github.com/openai/whisper)
+[![Binary](https://img.shields.io/badge/Engine-C%2FC%2B%2B%20Native%20.pyd-red.svg)]()
 
----
-
-## ⛔ THÔNG CÁO CHÍNH THỨC VỀ VIỆC ĐÌNH CHỈ DỰ ÁN OCTOLINK
-
-### 1. Bối cảnh & Lý do đình chỉ
-Vào ngày 12/09/2026, website rút gọn liên kết **octolink.vip** cùng hệ thống liên quan đã chính thức bị **Bộ Công an — Cục An ninh mạng và phòng, chống tội phạm sử dụng công nghệ cao (A05)** ra thông báo áp dụng biện pháp ngăn chặn, xử lý vi phạm pháp luật theo **Điều 322 Bộ luật Hình sự năm 2015** (sửa đổi, bổ sung năm 2017) nước Cộng hòa Xã hội chủ nghĩa Việt Nam về hành vi *Tổ chức đánh bạc trực tuyến trái phép*.
-
-Hệ thống máy chủ của tên miền này hiện đã được đặt dưới sự kiểm soát và giám sát của cơ quan chức năng nhằm lưu lại log truy cập và địa chỉ IP phục vụ công tác điều tra, xử lý theo quy định của pháp luật.
-
-### 2. Tuyên bố từ Ban Quản trị Repository
-1. **Dừng toàn bộ dự án liên quan đến Octolink**: Đóng băng, ngừng phát triển, ngừng thử nghiệm và gỡ bỏ toàn bộ luồng xử lý tự động đối với tên miền octolink.vip và các web camp vệ tinh liên quan.
-2. **Tuân thủ tuyệt đối pháp luật**: Repository tuyệt đối tuân thủ các quy định của pháp luật Việt Nam, tôn trọng quyết định của Bộ Công an và các cơ quan quản lý Nhà nước có thẩm quyền.
-3. **Cảnh báo người dùng & Nhà nghiên cứu**: Tuyệt đối **KHÔNG** tiếp tục gửi request, không thực hiện các kịch bản cào dữ liệu, bypass hoặc truy cập tên miền octolink.vip để tránh rủi ro pháp lý và an ninh mạng.
+Giải pháp tự động hóa toàn diện, hiệu năng cao phục vụ kiểm thử và vượt liên kết rút gọn **Link4M**, tích hợp trí tuệ nhân tạo nhận diện giọng nói (Whisper AI) và bộ engine bóc tách mã nhiệm vụ tài trợ native đa nền tảng.
 
 ---
 
-## 🎯 ĐỊNH HƯỚNG DỰ ÁN HIỆN TẠI (CHỈ DUY TRÌ LINK4M)
+## 🌟 Điểm nổi bật (Highlights)
 
-Repository này chuyển hướng tập trung **100% vào nghiên cứu học thuật & kiểm thử giải pháp tự động hóa hợp pháp** trên hệ thống **Link4M**:
-
-- **RapidOCR Vision Engine**: Ứng dụng mô hình nhận diện ký tự quang học nhẹ (ONNX Runtime) trong phân tích văn bản ảnh tự động.
-- **Whisper AI Audio Solver**: Ứng dụng mô hình trí tuệ nhân tạo nhận diện giọng nói đa ngôn ngữ (Whisper AI) phục vụ hỗ trợ người khuyết tật vượt rào cản âm thanh captcha hợp lệ.
-- **Playwright Automation Architecture**: Kỹ thuật điều khiển trình duyệt và xử lý DOM đa tầng phục vụ kiểm thử hiệu năng và tự động hóa tác vụ kiểm thử phần mềm (QA Automation).
+- ⚡ **Hiệu năng Native C/C++**: Các module cốt lõi (sponsor.pyd, ecaptcha_solver, ypass.pyd, layma_runner.pyd) được biên dịch tối ưu hóa sang mã máy bằng Nuitka, tăng tốc độ xử lý và bảo vệ logic hoạt động.
+- 🎯 **Dual-Network Sponsor Engine**: Tự động nhận diện và hoàn thành nhiệm vụ tài trợ trên cả 2 mạng quảng cáo phổ biến nhất hiện nay:
+  - **Mạng A (what-on.com / website-analytics.net)**: Tự động xử lý tiến trình 2 bước (60 giây + 15 giây), tự động chuyển trang và bóc tách mã bảo mật.
+  - **Mạng B (	raffic.com.vn / iatum)**: Xử lý đếm ngược 60 giây, tự động tương tác và bắt gói tin REST API để trích xuất mã tức thời.
+- 🎙️ **Giải quyết ReCAPTCHA bằng AI (Whisper Audio Solver)**:
+  - Nhận diện giọng nói chuẩn xác với mô hình OpenAI Whisper cached siêu tốc.
+  - Tự động lọc bỏ các iframe ẩn rác và ưu tiên chính xác form xác thực thực tế.
+- 🛡️ **Anti-Detection Stealth**:
+  - Giả lập vân tay trình duyệt người dùng thật (Real Chrome Profile & Spoofed Navigator).
+  - Tự động vô hiệu hóa cơ chế tạm dừng đếm ngược khi chuyển tab/thu nhỏ cửa sổ.
+- 📋 **Tự động sao chép & Xuất kết quả**:
+  - Tự động bắt gói tin API Link4M /links/get-link-info và lưu liên kết đích vào destination_url.txt.
+  - Tự động copy trực tiếp URL đích vào Clipboard hệ thống.
 
 ---
 
-## ⚖️ TUYÊN BỐ MIỄN TRỪ TRÁCH NHIỆM (DISCLAIMER)
+## 🚀 Hướng dẫn Cài đặt & Sử dụng
 
-- Mã nguồn trong kho lưu trữ này được xây dựng hoàn toàn với mục đích **nghiên cứu học thuật, giáo dục kỹ thuật phần mềm và kiểm thử bảo mật (Educational & Security Research Only)**.
-- Tác giả và những người đóng góp vào repository này không khuyến khích, không chịu trách nhiệm đối với bất kỳ hành vi sử dụng mã nguồn sai mục đích, vi phạm pháp luật hoặc vi phạm điều khoản dịch vụ của bên thứ ba.
-- Mọi thành phần mã nguồn liên quan đến các dịch vụ vi phạm pháp luật sẽ bị đình chỉ và gỡ bỏ ngay lập tức theo yêu cầu của cơ quan quản lý có thẩm quyền.
+### 1. Yêu cầu hệ thống
+- Hệ điều hành: **Windows 10 / 11 (64-bit)**
+- Trình duyệt: **Google Chrome** hoặc **Microsoft Edge** đã cài đặt trên máy.
+- Môi trường: **Python 3.11 (64-bit)**
+- Đã cài đặt **FFmpeg** (phục vụ bộ giải âm thanh AI của Whisper).
+
+### 2. Cài đặt các gói phụ thuộc
+Mở PowerShell / Command Prompt tại thư mục dự án và chạy:
+`ash
+pip install -r requirements.txt
+playwright install chromium
+`
+
+### 3. Cách chạy chương trình
+
+#### Cách 1: Sử dụng Menu tương tác nhanh
+Chỉ cần nhấp đúp chuột vào file:
+`	ext
+Run_Menu.bat
+`
+Chọn tùy chọn chạy tự động và dán link cần mở khóa.
+
+#### Cách 2: Chạy qua dòng lệnh (CLI)
+- Chế độ có giao diện hiển thị trực quan để theo dõi:
+`ash
+python src/core/bypass.py "https://link4m.net/go/XXXXXX" --head
+`
+- Chế độ chạy ngầm tiết kiệm tài nguyên (Headless):
+`ash
+python src/core/bypass.py "https://link4m.net/go/XXXXXX" --headless
+`
 
 ---
-*Cập nhật lần cuối: 12/09/2026 bởi Đội ngũ Phát triển.*
+
+## 📁 Kết quả Đầu ra (Outputs)
+
+Sau khi quá trình tự động hoàn tất:
+- **destination_url.txt**: Chứa đường link đích cuối cùng.
+- **extracted_code.txt**: Chứa mã xác nhận nhiệm vụ thu được từ trang tài trợ.
+- **e2e_bypass.log**: Lưu chi tiết toàn bộ các bước và thời gian hoàn thành.
+- **Clipboard**: Link đích được copy sẵn vào bộ nhớ tạm, bạn chỉ cần nhấn Ctrl + V để sử dụng ngay.
+
+---
+
+## ⚖️ Tuyên bố Miễn trừ Trách nhiệm (Disclaimer)
+Dự án được xây dựng hoàn toàn với mục đích nghiên cứu học thuật, giáo dục kỹ thuật phần mềm và kiểm thử tự động hóa (QA Testing & Academic Research). Người sử dụng chịu hoàn toàn trách nhiệm đối với hành vi và mục đích sử dụng phần mềm.
