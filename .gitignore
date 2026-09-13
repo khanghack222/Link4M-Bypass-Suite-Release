@@ -31,3 +31,7 @@ src/results.txt
 src/core/trafficvn_runner.py
 trafficvn_*
 *trafficvn*
+
+proxies.txt
+*proxy*
+
