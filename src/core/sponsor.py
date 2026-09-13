@@ -1,41 +1,700 @@
-# -*- coding: utf-8 -*-
-# Link4M Security Engine - Protected Native Module: sponsor
-# Protected by polymorphic bytecode encryption & anti-tamper integrity checks.
-__author__ = "khanghack222"
-__version__ = "4.2.0"
-__obfuscated__ = True
-__integrity_hash__ = "47329ef5c2f8e42bf58b00f279093aa2030bba67ee980e4d3a8ee14883972c01"
+import re
+import time
+import urllib.request
+import ssl
+import base64
+from rapidocr_onnxruntime import RapidOCR
+from config import log
 
-import sys, os, zlib, marshal, base64
+_OCR_INSTANCE = None
+def get_ocr():
+    global _OCR_INSTANCE
+    if _OCR_INSTANCE is None:
+        _OCR_INSTANCE = RapidOCR()
+    return _OCR_INSTANCE
 
-# Try loading high-speed native C machine code (.pyd) if available
-_pyd_loaded = False
-try:
-    _dir = os.path.dirname(os.path.abspath(__file__))
-    if _dir not in sys.path:
-        sys.path.insert(0, _dir)
-    import sponsor as _pyd_mod
-    for _attr in dir(_pyd_mod):
-        if not _attr.startswith("__"):
-            globals()[_attr] = getattr(_pyd_mod, _attr)
-    _pyd_loaded = True
-except (ImportError, AttributeError):
-    _pyd_loaded = False
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
 
-if not _pyd_loaded:
+MEDIA_EXTS = {'jpg', 'png', 'webp', 'jpeg', 'gif', 'html', 'js', 'css', 'svg', 'mp3', 'mp4', 'json'}
+
+def unmask_domain_candidates(raw_text: str):
+    """Auto unmask domains with asterisks like shin-shih.co***.tw or site.c***"""
+    results = []
+    clean = raw_text.replace('★', '*').replace('x', 'x')
+
+    # Pattern 1: domain.c***.tw / domain.co***.vn / domain.co***.tw
+    for m in re.finditer(r'([a-zA-Z0-9\-]{2,})\.(?:co|c)\*+\.([a-zA-Z]{2,4})', clean, re.IGNORECASE):
+        p, cc = m.group(1).lower(), m.group(2).lower()
+        results.extend([f"{p}.com.{cc}", f"{p}.co.{cc}", f"{p}.{cc}"])
+
+    # Pattern 2: domain.c*** or domain.co***
+    for m in re.finditer(r'([a-zA-Z0-9\-]{2,})\.(?:co|c)\*+(?![a-zA-Z0-9])', clean, re.IGNORECASE):
+        results.append(f"{m.group(1).lower()}.com")
+
+    # Pattern 3: domain.n***
+    for m in re.finditer(r'([a-zA-Z0-9\-]{2,})\.n\*+(?![a-zA-Z0-9])', clean, re.IGNORECASE):
+        results.append(f"{m.group(1).lower()}.net")
+
+    # Pattern 4: domain.o***
+    for m in re.finditer(r'([a-zA-Z0-9\-]{2,})\.o\*+(?![a-zA-Z0-9])', clean, re.IGNORECASE):
+        results.append(f"{m.group(1).lower()}.org")
+
+    # Pattern 5: domain.v***
+    for m in re.finditer(r'([a-zA-Z0-9\-]{2,})\.v\*+(?![a-zA-Z0-9])', clean, re.IGNORECASE):
+        results.append(f"{m.group(1).lower()}.vn")
+
+    # Pattern 6: split/masked domains like dawnseeker. .com or site.***.com
+    for m in re.finditer(r'([a-zA-Z0-9\-]{3,})\.(?:[\s\*\.\-\_]+)(com|net|org|vn|tw|za\.com|co|site|vip)', clean, re.IGNORECASE):
+        p, suf = m.group(1).lower(), m.group(2).lower()
+        results.extend([f"{p}.za.{suf}", f"{p}.{suf}", f"{p}.com.{suf}", f"{p}.com", f"{p}.net", f"{p}.org"])
+
+    return list(dict.fromkeys(results))
+
+VALID_TLDS = [
+    'com.vn', 'com.tw', 'co.uk', 'co.jp', 'za.com', 'com', 'net', 'org', 'io', 'cc',
+    'me', 'vn', 'tw', 'vip', 'tv', 'co', 'site', 'top', 'online', 'xyz',
+    'info', 'biz', 'club', 'games', 'app', 'live', 'ai', 'in', 'us', 'uk'
+]
+TLD_REGEX = '|'.join([re.escape(t) for t in sorted(VALID_TLDS, key=len, reverse=True)])
+
+def extract_domain_candidates(ocr_lines):
+    candidates = []
+    raw_texts = []
+    for item in (ocr_lines or []):
+        if isinstance(item, str):
+            t = item.strip()
+            if t:
+                raw_texts.append(t)
+        elif isinstance(item, (list, tuple)) and len(item) > 1:
+            t = str(item[1]).strip()
+            if t:
+                raw_texts.append(t)
+
+    # Expand texts with OCR typo corrections
+    texts = []
+    full_joined = ' '.join(raw_texts)
+    raw_texts.append(full_joined)
+    # Remove all spaces between domain-like word tokens (e.g. bong com 686 -> bongcom686, https://bong com -> https://bong.com)
+    joined_domain_parts = re.sub(r'([a-zA-Z0-9\-]+)\s*\.\s*([a-zA-Z0-9\-]+)', r'\1.\2', full_joined)
+    raw_texts.append(joined_domain_parts)
+    joined_space_dots = re.sub(r'([a-zA-Z0-9\-]+)\s+([a-zA-Z0-9\-]+)\s+(com|net|org|co|vn|io|686|88|win)', r'\1.\2.\3', full_joined)
+    raw_texts.append(joined_space_dots)
+    joined_direct_dots = re.sub(r'([a-zA-Z0-9\-]+)\s+(com|net|org|co|vn|io)\s+([a-zA-Z0-9]+)', r'\1.\2.\3', full_joined)
+    raw_texts.append(joined_direct_dots)
+
+    for text in raw_texts:
+        texts.append(text)
+        fixed = text
+        fixed = re.sub(r'\.i0([A-Z])', r'.io \1', fixed)
+        fixed = re.sub(r'\.i0(?![a-zA-Z0-9])', '.io', fixed, flags=re.IGNORECASE)
+        fixed = re.sub(r'\.c0m(?![a-zA-Z0-9])', '.com', fixed, flags=re.IGNORECASE)
+        fixed = re.sub(r'\.0rg(?![a-zA-Z0-9])', '.org', fixed, flags=re.IGNORECASE)
+        fixed = re.sub(rf'({TLD_REGEX})([A-Z])', r'\1 \2', fixed)
+        if fixed != text:
+            texts.append(fixed)
+
+    # Priority 0: Unmask any masked domains like shin-shih.co***.tw or dawnseeker. .com
+    for text in texts:
+        if any(sym in text for sym in ['*', '★', '...']) or re.search(r'[a-zA-Z0-9\-]{3,}\.\s*(?:\.|\*+)?\s*(?:com|net|org|vn)', text):
+            for u in unmask_domain_candidates(text):
+                if 'link4m' not in u and u not in candidates:
+                    candidates.append(u)
+
+    # Priority 1: Match URLs starting with http:// or https:// (allowing trailing path/sub-parts)
+    for text in texts:
+        for m in re.findall(r'https?:\/\/([a-zA-Z0-9][-a-zA-Z0-9]*(?:\.[a-zA-Z0-9][-a-zA-Z0-9]*)+)', text):
+            d = m.lower().rstrip('/')
+            if 'link4m' not in d and d not in candidates:
+                candidates.append(d)
+        for m in re.finditer(r'(?:https?:\/\/)?([a-zA-Z0-9\-]+\.(?:com|net|org|co|vn|tw))\s*[\.\s_]*([a-zA-Z0-9]+)', text, re.IGNORECASE):
+            d = f"{m.group(1).lower()}.{m.group(2).lower()}" if m.group(2).isdigit() else f"{m.group(1).lower()}{m.group(2).lower()}"
+            if 'link4m' not in d and d not in candidates:
+                candidates.append(m.group(1).lower())
+                candidates.append(d)
+
+    # Priority 1.5: Stems without valid TLDs (e.g. https://phanvansantos or https://www.ok365)
+    EXPAND_TLDS = ['com', 'vn', 'net', 'org', 'info', 'com.vn', 'xyz', 'top', 'site', 'vip', 'io']
+    for text in texts:
+        for m in re.finditer(r'https?:\/\/([a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*)', text, re.IGNORECASE):
+            stem = m.group(1).lower().rstrip('/')
+            if 'link4m' not in stem and 'google' not in stem:
+                parts = stem.split('.')
+                if len(parts) == 1 or (len(parts) == 2 and parts[0] == 'www'):
+                    base = parts[-1]
+                    for t in EXPAND_TLDS:
+                        c1 = f"{base}.{t}"
+                        c2 = f"www.{base}.{t}"
+                        if c1 not in candidates: candidates.append(c1)
+                        if c2 not in candidates: candidates.append(c2)
+
+    # Priority 1.8: Alphanumeric tokens with digits in OCR (e.g. BongDa686 -> bongda686.com, ok365 -> ok365.com)
+    for text in texts:
+        for m in re.finditer(r'([a-zA-Z]{3,}[0-9]{1,4}|[a-zA-Z0-9]*[0-9]+[a-zA-Z0-9]*)', text):
+            tok = m.group(1).lower()
+            if 4 <= len(tok) <= 25 and not tok.isdigit():
+                for t in ['com', 'vn', 'net', 'org', 'com.vn', 'vip', 'io', 'top']:
+                    c1 = f"{tok}.{t}"
+                    if c1 not in candidates: candidates.append(c1)
+
+    # Priority 2: Match strictly valid TLDs with word boundary (?![a-zA-Z0-9])
+    for text in texts:
+        for m in re.finditer(rf'([a-zA-Z0-9\-]{{2,}})\.({TLD_REGEX})(?![a-zA-Z0-9])', text, re.IGNORECASE):
+            full_d = f"{m.group(1).lower()}.{m.group(2).lower()}"
+            if 'link4m' not in full_d and len(full_d) >= 4 and full_d not in candidates:
+                candidates.append(full_d)
+
+    # Priority 3: Match any token with dot domain (letters/digits + dot + 2..10 letter TLD)
+    for text in texts:
+        cleaned = re.sub(r'[^a-zA-Z0-9\.\-\/]', ' ', text)
+        for part in cleaned.split():
+            part = part.strip('./-')
+            m = re.search(rf'(?:[a-zA-Z0-9\-]+\.)+({TLD_REGEX})', part, re.IGNORECASE)
+            if m:
+                d = part.lower().rstrip('/')
+                if 'link4m' not in d and len(d) >= 4 and d not in candidates:
+                    candidates.append(d)
+
+    # Phân hạng candidate: ưu tiên tuyệt đối domain có Website: hoặc https:// trong OCR
+    def rank_c(c):
+        score = 0
+        clow = c.lower()
+        if 'google' in clow or 'link4m' in clow:
+            return -9999
+        for txt in texts:
+            tlow = txt.lower().replace(' ', '')
+            if f"https://{clow}" in tlow or f"http://{clow}" in tlow or f"website:{clow}" in tlow:
+                score += 500
+        if clow.count('.') >= 2:
+            score += 40
+        if any(kw in clow for kw in ['88', 'bet', 'keo', 'cai', 'casino', 'game', 'club', 'slot', 'win']):
+            score += 20
+        score += len(clow)
+        return score
+
+    candidates = [c for c in candidates if 'google' not in c.lower() and 'link4m' not in c.lower()]
+    candidates.sort(key=rank_c, reverse=True)
+    return candidates
+
+from concurrent.futures import ThreadPoolExecutor
+
+def _probe_single_proto(proto_url: str):
     try:
-        _0xK = base64.b85decode("#w{WY;VuvU>C1hB5AP7^DTCoNRIoq0r;Q&H7}gF+")
-        _0xP = base64.b85decode("zW4WW>V6cdU#rS|P|JX+D-S&DjF2<ATLzMC*;WU)hEHmcIS7NU-s@hb-7*qNxaF7tialRqz*O|UQSi_h^yDs;5W+uAhCKwO`WZEt&+b2*@>SB}%-Q-+|GR6JjX?KTL<n3PBpnlPwpcZJt><#e0Db*lQ(&R(V;M8PT3+q39T_bZu2=(n<>OiT9*cXE9iLA1-5>Z`<U*6$C5ph1<FGwZo0$mAN=+!6hWWEV8nZ!Z0w@ZFk)<?H2L%k~()V!r7j?qe*VYq6O^+h=n2Y<D{&)nGRnPHphlZR%e;wSEProU|WWhTpybkb(qW#S$B3s(NTvrhjxwN9bDmMhJsL&Ieu*{cx%o;JB=qf|J{dQttt%x}D!pBUD_qVfadY+mnuc~%Wy{%-yLBu96_`pO&$9w+wPXnbG)LP0EzR&?*gAyV$Cw<HZZSV(?n8+IDAs(u)N=E2U7Fm)1Ru`6?e2B-lFZ@Y?>)IG=mwiT4YxA--D*%-hPqLT&E$|r~OnD^dYN{fRDYLw$+7QA%QY!$s?K!~*5)WZC1}K4UKPaf`1@Oh1O4G;M7#4cNfWPm?b&OzzuKHQOR3gJ4b-L$M2jN|u<GVG0EUyDCde)ZRo5`?#)+ui?+EMA<ll5C84kVWl<d+sCRZKJ`B|uumHNO0)1I!!!7eL`%n7iEB3ec!NzbYnOKE|Vo)Rjq<$s{M{W*;rGZ$o9%e=k|H-<}DCyL%1fElG^Q>I!x!pIfa`z0*O}tN9}o8eIy)HX3JDmO`(G0i{QbD#5oa3~!TuCZA`ZL*(MsSN2A2;Tub1m>}ICqaYDGr=QZ@rIG~4PP_A+8y8Q@Z5~2+*HMg%>pp$NHoR)nA}av0*LQ=n$aPo&&OoVM|L91T$`naVov&X;>e9XJ{^`!MQ9F)v2y_KNg$80#8bbkavcL~0c)D78IRhX4ztpe*(HdjjA7_|3E}Bl9adTpr6+oMdT|Ujhft8gB?=F-`N*4d}C+JDp)`*1Lg&g2z`i>4VfcZcSQ^JgPdqlEbszw^)iy(Q*cAyZve@<xuf;fBe+Pm>R1YmJ(&^xx7em;EO(0=b=Stu^nprFCYEf%r&@Pn5-Abu3U0lIe;pde*uHcSJ@SBq4ojN%n~&{Zb1#>_M1gEOFV=BRk(j?v2w80C^J*GxkzX?8hA;!ed@cq8jK-SI2t22I+$Fxl6W2*Bg!0fkpZSCDYSfOi{Ibo4q9wQjtDG6C9Mya%2VZ(${tW>ETeqmW{2ux9-kf<CGGZx9q}Vfd##y)?BWs9-5KKyR^c>Hif^*^FxAaM`Fm+|>pAd0_=(gqB*0g7q&(_2$6&YKQrhdEtN99jKE`s}}JHF8ec5EulFUrESc^svsc2<Yjd%G_+N?(nf|=_$HSC>oj-hG}&d1z7qIC5m!d+tEw|}3+F2>1~M**#-pOMrf^VeX~&G`54Wa8kKq$sC3UAS6FoY>GJj2cysE({X?b9V8<!vbTT^W#R|8YZtKLn(aI3gk4}uaR#WoL4_Kwi?dQ?XnW0^FNz7*5^Kxwdv!VQYO-zwa>(I$#0;Rn6;-cf82mFt4tOS)OdpCv8vg=W9V`AX<f#5k}drU-WCY}`y)f|8}TMWJu*w95xR#g){EQCw+AO81cK!{u>$(i*%QY{~F}BECw56ep#mTk<R&1p{<@NuHwn4HE;Z^Um;8J(5hy21Ax<N|LQffkbVp_m-FW^!3FxB`=rh)XPw8;}IdS=y01ILnU!L3}(@w#)7aU%1E=$Jeq(YnSbQN#mn5_sgwhlUpJ4v3Bhuwr%sk1ZDQ<bWF~wd@U?byosIEYl@EU0xY!`;I!o00RGT-5p}>fH&>8E<#0~8X=20A>d1_(AKz4B*-;(o?Lz20XWvPG%|MXYIW^=b8J17U}*g$iewE88e?DLQ0K(pf%YgC0cVVH<6*|S?y2_UZL<woMT%^B0~eWj*SV&@mc>Hn^UM$fmWPrP-pHj|{`n0#|QETr0q;~+>4nE?NTz`9$Hah^uhCw0R^_YA2X;NYsrS8>fjxxbqBpH*~Xfz{M@12+C$=O}p+bL;DSkaq}aScp#K9okB2g1QMIV8X23=n&#Pf7I~k<#2c>$`aQ3N1=m!Y)4J(A8SFs8XyzfxN&h;kf^pvGl%^xY@ZyrU?oyt{JlU{;EbDfLd})bO$Nl-TmtI`GDvety%hX>_EGX!P%B_KtKH0NrJ~`<{&(s6!bZY~?HTGyn6@$o+s?)9R|Jq5f^XH%M5&vGD3EoE?9F&tGAh(OGC}f<%QFH$`6Y2x&eRn6J)IWaYBml+QHy(9`<u7%emo!AnmkIXKWs?(k;b>in;{Z=dl1PguYravCU=#kW_xqkuPi+|6eZ+|A)VLayGt_ad58rcJ6U_unRiccy5743dK2W{S;#E5v08)T%ux@`bo-PRKSHq6tXEg@RBZa(WF@hy)4$7SWiiIVPwwJz;*PQBNdgU`0TA(ZRrMno9NEg}Q4!iOSdn}eQ+#rgWQhY(h3nv0Zh*r*{HQaJS&AG}1MGE}H6*g2zUV8^^p7UCv7+s@!i*%u%amhjP_*o3-6bk_?6mFUtt&RObGT!NTa;qKaD-yD_HcAdJ{23MX6PbHa8n04jVjn(MZN_SHtJUnW9i`DdI2mgWMdn%2D?0-$H`7(iltN<a<j?1MLi|`<o6#c(fQb`AX`EHUoy0-cd<#*#X@_cb4uy%evZ!@y8vsoy@;9_*b|+}eBO~IU&PbT+svsJGu*{0hn@kmgSB1>KI^=UUJ`IH(3CbIZl4R}&y?kmymtF!3%$$T7qVl&t-q1(2PF)g5by8#T)p=c(M`yO{o#%U(t7Xd!}*QEa*FjzNTy1kaKI`o`6F5`h95~583)X*x;&I5zUsi3)Ju4&&8zf(<5`$qLdx2*SUGi&M0<mCu5OnFaQ7w{8WUeD$@ekbRIf`#8jqc!O3UJ!h%p<x;tkCKCDmoFbF!qi{_|mKtqMVwT~JRduLQ=<Z!+Q_3WROI!JyQ^DgsRXG{_-Q^T2|?+X)MPxr6}_`9pi~KiEL36290GpR&ZEK{@quG4)Q4`xc@7k|r49=*fmQhVfH{=JMUPZANp%jXg_W>VFUjjucZw*&P{zMCZ@Rn$0BAzRP)!_tf>0N8NB{h)K!|`>&mM-|>KO6cg?+LW`=%*t+BJ{eY8j!pVg-y;LF;fv&MlD-2lteX8MMREarGJy4$=yqHn3<yO>Jq1%|YaM=KoZd5h9VVB9zy{}=F&5vm@`0G){o92TM<4+_1s9fFG<NQEPiUs2Hx2@A2ZYEz5_&#G2=Ue7&h_{<ns??i+_Sa#t@{HRXA@~p5R_aANJEm;cO|WVV;X!bV>gwz4L}hT<dlAu@d5C>-2mspDxn>qiIw?oR_(DpigPYtTjoAu$-1f(4D*lR>O=pt%lU<(QG1!=jHB6(dq#Rf=%FW{YSc|T$#eRH>6pa9;)maV$9$6j`od8CO(tk@#)3T7q7N0vCPL-ZgNZndeeI82|ebf?q(Xb|q3`Yky2NL=ZzH->6psKSpDGPd)G*PMKdld|!p}*4lqWP*S87&yXLK!R1h`%G+XzWMCK+$mevMgk~q;|$5@+eITn+7Q)AO)mDqu6B@0_3foA~g<*&|m|?xdV0^;e4X=KSudz3v*kT>t+EZqm83I>BbQIn^DQ|{?J3M9-&p%`cHGOxoxQOtd&fJl`a)NiPD_ms!JwdyhSYN5JL%i8({u#ySqm?RZ`j2MCZ3pp#MuJ2UeyB4i$9rOXb1xLST4oL}gq$89}Rh%)3z$s4}3jU{ZTGGqg6kvI_WLI^Pad%ZfS8V<nHCBMz<pJ#!!0KdTq$7{{!p^clTj;Th=PeF0mTY3M{-SLwn9tT=;qC@#iTHQRtq;#>T9C3J?W;m_Z-3P-Ykq+3)6TKHm&1__Z-P{Y+cIFy%O!J;4AwGLsXOSTzEk|{4&H`kEZH}fgwLH`8jmKmB!AMBKR!1NaXW}CKJMJ9?YXv#^!Q2o7PH4pud3vPq=U`A+}{cT;%3dQ0qs|X`2SpB@v2!W}cjM9-WRws|u8S27p&ulZVOm;a)imh*xk#p;HdE;=YVy-rr(EU+5R!LMnl5-iDW<li)TXNlfv>qc>sZ`AS9_;r1e0W>n-NY|L__V=gnK_i>=D9zqH2A7qIylyYjMDP|A-`<VGb}z&cJ&AwfB0a*0kK;Ap>Uc^@(t2r%LYxkVA4Mxex{(eW}6dg7xVZrn(b1Bsu!cG)%2AcC-W-&s6f+9X(J=y)^Am=C>TAmI#M?vm7fv3C2Ce@ib=0H@?GD>7vN^*g-f|V7z3ZzIRHCIHdTXalb__pkv1#b+$$m(eyoQNpd^E!3`X*diT;lw#&{!LF1sqe&8T9+=EjZ}nlDjGv$>M@u-8cQ6wn)AJMm2ld&)dtGHy2M!zhOy={d_+qQ-0?Lx-%B6)c}3lCXm`<A8b#&oD#EII8eo;mX~3r>E?bPlkn}ew1iaR-n+`nJB%ai#Etql+Rz{*=vHBL&GH`8HRkKUvu@KO1qtww{6pQ8zF0^Jtf-HB`IDPx#F{xIoRAOG@NZv)@2ox8X}TQ5F*YbKvk_FE5V5$mSuv%xcANbmvL<(=oPZ0y1cx0-i+pJd*FUOs6C;MosFBAHNoW<1oV?*K0xwQerw=|j09b#>!Wt9ZYVFURIp_yuILYG&*`wKi?K^Gz^*gkm8YePF@)uPfPd!u8NN}d*0Nj|FeoGtWhd``3XK-Ayp#bLD2Gs(-%dqqZPFzUrxWJ@!0W3kaqf3$kqQW3kbt>8YRK0Qm}Ty0Mf-KsYkA>Sxu=g!NHKdWxw&@&Xo=t7kHfD46XKAO@=lCgD*+LHGwrw%G&cG1_|XWi+`DZNm%>1lvUl&gThQgf8LG7w)WMdT70RQd@EbGX-M6B|E-XJOBhG?G*_L&5<z<Wev###m6H@VoO%p?91}gY1Oo$3+o^>P4JfZa<;Dpbz1xTreW)zwdybuybg%jVJG^tUMY9G2qFdaUr6(tb>s@s=o@C~&`apY20s8z=v-Da6D>n1DAH)kNTD7f~~%!fqgBiNWX&Dn>EG|I?2heq(T9>nM?8prqM^C{+V5U_qFv?$Bk=%D-t#FcI6wss+Ee~ybmLoMIeLgY{>RX&vgGbyUzRO>^+kq2yfeUUGG|Biq&=&#`ZLWCD7o<gI%3F<9ijc{*73y%bQwcTU5t^hu;P#@1u4>QVvaC6h&0a?=Z=VAF_-i{Z&cS6Wet3{w0+x3Jh^w=dn*w!$vdjrxyadQ4~WPPAEU4WJ;e+}IM?$?gqQ)NH}!0U~2e}b~JRza?Czg#O|dtMr?Gn_iwGaSX!*0c?yLFWm)m&i+pFW9&<9R&4VO-Z*h5M}3}OIcWm0)N$UK<|y1l7KeSf|Kwl8>6itsT9;{R{?;Jn18(INu73k{bekd)VFZTQ(e+~bTtzR5LW3+4dHI#vVaf~0PX6iX6Yvpd2eb95_=(jTL<=^#lKN3!N!G;TkQrAB;<(tA91ZmI_pemO*Ua5^sQ{&?!n(-Ceq8MwgSjxy=m!^G#*0^Fr3*BjjEX{?0A$tL96^%h+=(nYNgIj!L7s(@@0Ws&<4!v|2gIv`!S^2?%ItENA?TX<!NU~1esT5W=_>~wHCu?Uhmj^6|y!!3+saStykHqu7^s6Mt^&;-Mq&t{Qek@PgDF+arOPBwBiI=uqQ5(onpc}Wz2ZbH0b1Wcm??@1D>BeAlS5LLuHyzH<;0V6{?7dA(Z`I`(~W1ONZzUfU^(@u-(D`6sUFEg|3SH^P3ZrBEq$w=|EhHJz%2kEA9q2)OzliGLB^#A1qLe8mBEfi#q^^&Fd5_<1bbu{~flF&2gu<u?ztaaX)G}_1~^ZgP^wlJBHP6YZ`3SiF=hK3v1nJVzq0R3olAa;kd4xF60Yj>`+*GeX11=fU|t%;Mzfa>OxZ}Ah-%KwTr3yHE*bQp)aty#50dB7gd1ccwik*^^fY|!%@D?*uJG!`4a;<Hm!e>guvZ0ZQF0c3oqzef*dR2%*6~L<#=R`*ts)sjDM_7Rfg$_Jxj#wHBnP&-q8pNC4qLS235ngaL?o>fOEkX@rlO(tc<Lst#-g}_#BTBI-{m{(uuK;R>yt|x%C^!8$Kj6f|e!0AQn-k^&+pji~<su_3KS+Egh3Jg-)W!T>ScuiiHo`C6mA|A7Pqn{5NX(qW>wzbiIpg|A-Ej_-DZsu}g9-W=x-%mRz6QwUi;Cc53ELjm`HZ$gI9kVt3f@H%4PPne7oRv@`h4L=q%bn@z!f$b9AT;4wm5r2o_d;oM)kx5_pvhyIe7IQ7O1M-4J24@gA*X1gg`G!bGHh;KwhfXdc!7|~wTA`6X5rP$?RkOuEWpMsjIiJmP~fmEbV66<GFh)hp?L)k?q6MN-WWZ02eJHDXfc^7woyl$UG#yk<yUvdoGnU!UIFn}2{FM!zN*OAr&uK*^m;Nr2il|AOf^$yf6lg|^6u5qlNvTt?|5vbAr<Yxs~>1DC>Q2tw)w64JT@%^;GWBr_S{JwPZ1iS2Uy|EThMF84lU=aP8*~T1k*4GF|{(i>1c@{S{nlD=0Zg^qD#~$>GnbWf}Gr*cV^>J`RPKi%R^}Y-U$9VcFkx+OS`NldEdN<d<=|&YnUV2!Q(UMdg5T^I6kG9joKWsO#$7s+!Q+||sIz7F1_$MB1o#e8#eg8-2ta;VxGiZ~0tYlYyb@UWyP)(`)%{RW1&?54P1FmVgmfPBVSMdvew32@x>}VIeA<N$mHxp!g_&k{LKzEJj?-alh^=aebS0K3V&$fev13BEcln;}Es<3zX&p>@IbHqRHR@?MyHvc8$59y9oM3{1Re;Q96=D^CO)wx{1rQ)Ln%zQD#P-D@y-9|KgMp>QftOBI2#>bg5M9<%643A%U1Yh31rm1zwJQgp|r-2h~7e03rRXqNG&x@Sk3O2_6@D1fA6Wv_%xaMBCv+3~jC+dwDyx2!${{rDaP$VWxa;{~aI05%CGW!s*K>4P`C2%OZ!CwE199h(7=?*sehWbTLMgj!IW9#Bmb{V=Eb+=&qGXS%p;+#knOsMP5Qc16T2Y@drzG84{@EE{sPp-W%^vVpTBuy5|sVT@Gh=Uif;HLe7lMvbc=+0=H3i&oYAf94X1asl8LNZ|YNf!MUMNTBog|>)>w%Frgi`RtxK_SunD581Sq(yYPavSMf+&BM&#mIETek;)JkxDd4+#HzkV0iYp>-I82Mtnoa&VIuAOqP-qx~udV%6`y2CRtkNQ#EG9WlP+{q81>@QUl3ROeBfwEr0FFa9<6jtY4V_(v0$2fiB&kurk0fVwl@s>^TBf+0teh_gkednsUx$ckrMEMdK1RG~j+osCi#B7k03eBp4v)1q+q<3NZZPG)!QFbsp8sakuPj^!3wA2RX)_<vS$+Cr}(`aa_J*SqL#H7gZ|72VId03Jo<ROUhDX=F6Iwg)*?i6Hrrv#Vz8Y`xG%wGw7!lLqR>H@iaexV{eL#U|=$^rSsfUFHl<3g=wm2M@soa69$rZ_!YzETe@k|Y~C%msp@a)f_C9Cy8Tk6IypUF*~!W?iwR}+B26~){#T2#@@S<rm8Mj{Lz4jEH+&Jm?SSd?VH-?hfLZxTAoWBNu}kU`u6*0-w%}2N2r+iaydGk1acy}FN?Efl0cdy{*SfI*it0~0VOHXP;Tu7!mFN{3$)rTSpSRr}+(^x@C`JVQW)$C2^e%sotW?!%9Q$p+yq(CC1MzD8tkA8Htp;@r19M}&_QP1F53z2<6gyt9rov^9Td2?Xd*3if^7WL>7_Zo-pJ%*M{3j4%9ckiS4094fm%i=`<h}E1;Fe<#Adt6og|M{)>&p%ELO{3xJhxmrhgyemG8h({9!nirtim;+8VyxqN45l%4_BxUi7VI}JieJ|P5^AL1Z14`8hr3=!0@;h)8mABRHu;kzuQ`cMXyn4(m2&EboU>XahjQh8F!pe5=(*Q^rn!YRORFGn8jGgkyn%Q=fH+2>3W`En)mUH3;-ytSWv70FA_q(ca;qWDPX|@-)vq)+BH%&68lO9!?HCLAaPK&(8Z-|Myfu_vIr{XtVCFtEOxk1dKDj55`36iRc$Dd1ys|gf;QVe{egOaSkImxm&H6Ok&usigEFdShk$~W8t2EK+)b<%=isXeNuy}OmPX|bh*L*zUdZ2$CSDClh~qveCVR+wRWPr6X2rQO+G+A*awS@>c1a(;lE@Bkd=kskpZ%zgh8TN`gMn=vj_6<%jBxC1{{5H^KnCnjt09pp>zNcSf_73UG;VGZ(MnNzeWn7GzqO<?U*^49Ztw6&@WN~L@X^VZ%?7ZGkXV$Qn==WKi^j>H+I_w)nTaCV&)U}v>g-asB4lSBfcj#xJ3dw>Z$_gY)KOvEg<w`x+qi<Bc;hWN2PBHTHCv`*u$RDNI-n`a0GhZ|kZrYU9RDO~u}R<>z`oA<Y~6ZdEO|QJQgO-udK6MDRfbo2k0X-rFWFy>cGV~4DEx2~wii%;J=ypd0~`eqoJFgF*FT`phK|UXFwV17aZ=Giq~Be1FxZ<7%GD*OU%U?Uv1D96U>d$k9(GnlaWR`WXf>|b@@{3YElb@_e8w{cLJ$dFygcWxKu4o>O!O4I;zW@?F%Jur%2ka5)A#}hrbl8>W)ZG^+O^RYqN8gi?=ISc%k1cJ_*lZp+-~6_!JVmJGgY1W!ECVCoG<ue&K3oeUcJ!K$$(G3mmZ}GK(6>^USwbaH28#Uy&bR7dhw}Fz-*X#e<Y8ogU6f98C8XjW1T7WNe>O8YW`gw&+})Ks&0uCuf-d-L%@d)MTYR~_|ZbldV>p+rHlDbhl;A#DbzqH2;sg0s4=nXON}^=o*6;`R>LIf$%xlS^cQl9@jR>(U$*hrtM>;-?k##y)p;n7t5#bBp6o`HU(vKymAW5X!Qus=)Msac_p``$mVqQA^lX>z5F&X__n1z&C7k=NcJ<Qp(djD8?$Gd35@Tj*S$N-v!>07+nQ#J9taHd5pW1&k1dMcmDF~5Xyl%(fLIQ*mGB$_7irHLyGG>6EU0!JtDPjrUUy8259`cprIV*n;IjOfpGB6k`3Ow@r7G-s>FcpOBHX6l~({I!mydJXg09l}%k{?9B(#9^JyH0bvI|5|q|NBW=La<OiO0wY@fH^r>wb5uo-f;ZP$_ZBkBu8>2jqQ7U4ryl909?yV_eNjPagzUUg^@n#{J*J@b)HP@B<%bwFXkJwJn0}9zETk=>gU)INoq`mt6DF6*k3U+Pni%r9zs4{GA9@sloadS|9M@{13Zj91d?ns!Jw#p<WG|e!E^T_{~<u;TxExAx43O3_ABILet4fB8}H!us2^?(o?G>i_&{W8>1Y`)GW=9XdS`+bM%vd|`kmIG0DVW(1Aj~5w7q(rB_oJyCv$U6He4x8^|B=Xh0W$an+O9(m*2lk_{;%{87Nq5QA|?aoKqL+0)gF?&ijX1Ea(0YJO|p7G$0DZbH3aR<`eCh6qORtHs$?~t0p)sb?#E&cOU4Rf7L>nT-tL+Oxu2PQZfzMWQ5jILhMR#!ek$4l4WNUGpiG9R15k9zS9mUB*%_1TyG0UIJ_zpv9akO8ZIu_=s17BwCm`QeCwlljh<t2ft9ScV5m%Xa>*g&CzP4YPc&~Vse?#!P@EQBVfoNnLV%R<T9d)+pw;hQ*e~N;i3B(SPe@Zf!(r#Otu|W&W%%SF2+#zeUzgbQh!c^HR?ft00X`((gW;Mj;%u6E7!)(j_oygw^qoArM5vrFSSzmK*<mv&sZ(akf9zK%V53ZOk-3;oW}0wg4dX+oZa-wXyd8-2C3tp&vl9WzHyw-_)dpE!90W4{vU<9`g_Jq}lAC`Rj5(}yZDxnW=e0OLmhsnJZ=B_|2=fj2hQ<KB13=%dOcCUrQoEHKw*s7j5-@kmu=>i;#r`HJG|25AYJ5S^U12*B`Ui%P>1DVBSeZ36PE#sqC8V*t4C9*%09;BbnvtokH-6}Pe?-1QY<)nWP^fE<kvl7>06t(8fD9dvY!{OI`9B@}lOs%-QoawmAt47nNO&I5RBf_E%OlAA@WiA<g$9De1+6b#_MUlHC=ARVr%urvD2T{}J@hQ2R*&(*1Sud-XB8bh5+6cM;%nNa$nB%~6O}O+K#Kki_av5#Sl13-<e1_4@Cwtio{DaTDGv02VUVX!Qo$<R=_#7&_W9QBWJ2GhJWVSWi1dnj+ZZ7>)naj5U6j~#$+Kw|N#-7YINT!&H9*Ze?me7-RB7~@4Dox>1Svumo4>}@8R5MzFPy4L#QzK<VIbMjVR564>MwWiTW8H~AKYh7UMdy&mETUOumv+nJADx(Y_`;C#0m>78a-%(Le2AavgE0aI`NH(PmG4FENj+#v58p1;v$PrA<a=io{tXH#WKn2xJe1`028&ou1(i1sTh0ngJ9&m$AG+UfRk;RXhA+O9{3a_nQKEmVi`_A8gsT|I0^33f==%#)V(2auCiG-PaEvlGZE+P!9bTd!qBW-Y<EeD<-MW$t+DtnY18u_&YoUVkC}<5SzXI(-t1rKxFiEt+Vk@MgLo){oV3L($|fWACPMESKoVt3VZHyNHwBGoX+~7uG|X0Wf1V3tG9fow#I#D|mJBX<qSd3@2MkTElk`A&J6!zZ``Cq7$~1%BYUW{qT0ckTNrbC4K^AnHH#P9ER~NP8Lj*|YBi9$rp4VGpt`~`<d|loP`3@K8%alr&6)Gr`RVX&-rT;%Stn?Tw&U$aPXE|wDLSFE38L?uK2#rLB_VYRNJ)0x4$QZ|4TvMuIA$DdkQTVX{&=&ZXI^oZkATU`0FB-8L2A%lnEp(o9{lB=O6uf?FT;7zdatrs4J^RnY2zim@AG}BKCld%6=~9?wyu~Q>dwH|Gb!m9F&P@L^Qh;M3QeAmYKZa4&v_NudJ1E2+(UTYxzaj)=q;rOe)Z*{T?>Kfcr|^#`LVC#%A=&2L8~)MgTV*TS+-H~*zKeORm=AaGoYf>?H?7<{SWsVgfUC1!hod85%xodnqoxHKP$>sS!-tkYR}@-)8l-ZRs_CwNwg9Z6%=)*PmVUb>U3U8bsSk}@M1d)=HWos@`YQo2JszW8_pu1=6V6xYkNNKL!7d6NoyZTgX-^6&UYMNSl7r}!20o)o*j>|OXbK1g_FJyo(t^LG@m7hu7}S$v&4$jPR-|zmpQ02wu@4>go_Em2bP!9P94g@H%!MsE2<+xU_B4s_cUI#BDVe6ktas35>qo-zW)j|N6yw9=g0M7^C+(OLd|&dcU9I|Cd!XUk)9Gbh%Xrv1TW$*#0Zu8X*eQzns;q(|V3ZMngk`9RVQ2I0K|A7ZA^!vl<P|+e4*ZmSSv$w!1f9bjf#51q{8tPmNOX_GR{z^fjLRfrqA#dn*kC`@T5hGskZa`G3A$;nt+jWaT^2z%@;G#g#(UHa7jBkVoqW<iYk$YKf8t+bxW*@HRmit*HnAO)9~N7u1ZSuKiR+{2mRlBkO-F1Wrf4iSU*-R@Y(78Hpi}BF$RpdHoktz@cnbCzks@Z8-~UONUexr&H;g_FJw!Dz&e0j&XA+JdLni#}@^ktsbdyH+X5oZAp?8~m1Xp_SXa2&2JqUKCtHY8pvc=(5IlY*nK8<&6_>ewn-O^Z4d!8-m1KPxMS|Y*#i=R7jzGl)NMk_ybEeihyZ(7OQj|B{^8bWX$o<F}ZGRVjJ*dx8zcG<k)#gwh~vs>hoF;_LX9sfL=Qq8Ni%QP{lHlI)pjH{!0Rm^5_*5YlA5w9Gk!`Pk=8^r*G-z&UfsBMK)zL%Y2LD2&%FchfI641kzvuT-$<1MWh(@a!rh@Omm;1OX#(=v!tol4L8{s%J|K8rz0)-_)|{U2#rQL1KzLqqs}m>-U}13N#zg=259U9oL&tUxN;QEU0YOp%kPe9f$Zl-~|&VqWR0#K>5A<Y`?=LvTlOFNIGnIy^}mLM$u3n@Wgn%y3(%rGcEbGTeK;16(hV(S-_c)1xsZK6By5Ush~IF%xs0VLWfw*H93|@>6(0W3FN{<BTL5LWh=zt$I4r&|FY+rHP?K5LtMGVYyT-nxtJr7KgZg>cq^~N~=OKRlIY8w^!|DLA=6Oh?f^je_$RG_%!$j7xN2fz2t{9c!36b<o(jKddornX1a|U;V+3`P*?cmNRH+D@G)PT;U%v3B@1T_4Z|0VcKm6%Z1SfpaCi~xfG-~778_nH{`LX$s<09vJvX15eXW|tdq^rV^I?dyl``G<OgX15o^>p3C;Q6iNS?|20i3d^Zq{K9+Fj0BoH<>S#LCmUMFniDYuEsg2l35RN?lNJml+7k%am#X7s{9l<(Qu$7sKp{tC!#XR-H(#THjhmNrai@qEx*B61bqchvnv?i27i<4Pm#HIXSnd&(&WA(e?)Bj{m9mPMz#EK*cr8A6Q+AEy|I-vgL0^*YIZ>a{-+aI+oAX)g|+<Qx;dw>eQOfsEEy{r}R({BWC<GkXfjv%<ZP?l8^@AHhnaY&?a>(z{XtIcMZs46PP`k;wn2w`+R8h(dACjcKboQZq(sWT6T>JH>^C<x2*cEz5)j5bv0cYn%=f^%N`2Gb2#t&K^1v^J|#iuzfy;NWY+HG1X^xcfE{d_c-lbC<VC?y-Z#eX@@eWm3+kpns^cPT2NaGtVz&FrkmJrt1HfL0&AjiyEGAm2)xp4bmazi6+fgs5uI<H2*l%Ws2*!jTTc^9sz%b{|Ssil1x}%yd-LA-wKS3WITSt?BeC~Y;;eW9r9YuMUYWr_})#!OoNt(Zfl3n?4_d6T+0GY%QW>jKi$O(}0%#wB1f}|vK!AhhJ_|bSt*&(Y`zLacwgU7{l7sSD)UzCPL%WDOSxPysCv=RN$7{YInw!}!X*AgWB9nc(3|GUlmNbRWkMUq_c?@52;$rAP{;mhx-AL1z1U32h)s2o^#q|RCEfY0QR^@<R++KZ1opw#?Cp&awY8X0V$`cf+Xn6V`3kOsTMz@NzElZ;JdKj={YBCSbV__YE5;Hoc<N>Hwm67H!LI+g7?C>FAEhDTy0fxoM{Y3{eXATGIDy=Qo|f{Xg?!3<j6*^L9eMor#WYHEGLXT*|QeyVv~^9=-jP_du)6PknRqh(UH`ko?fccY6cY``L?Px(Rbq>f5E1p88LwZw#kje9NRbjthf&)Pn{j`M()l>uXQ8$ahW^eVj+ucMzPYE1~_={Zd}U)9rJ;u5%xRxJ^eXEi7;R;ih&6-xAH=CJ2)pgUf51rWCgHUvH>+>h>%nOuYqPTE8jdIySpzp@qm(Jp3*C35)oEhCznZJrm*`Dx$TRapx>>kbS<5}F7oCu?w%h0(`dPLHweV>U7Mt9{c34FX^JoLBx*f#@<x%9Gv%@$3`7TqN%3sTZ93KpH%~S^L=7B`=h?vPbn08aQcW)^s?B>#)=|p}++url}vY@DVC>!1!cAZSnT)L1>0dup&mWdr+29z+dt7CdvloWGdi-Rr%J-4v+#15i_7|togBeHIx6S@s5K*RyM%0;3t8WJ1p1zTEWj5fCS)e_P?%%ksh&%$tm@23)>L^8&G%~TV>BKv_l^uoJ=btueQoHNk6Zj!r4#1JYOS7f*7v3a|0tH$KyNWawgd0`qLgoVucnGetgqMssOy5!pjfeV}REz^r*GTk0BH3sMRB5Sqblh%qD)GHL2)3B6;*+OC8sxK9p~vDIoYDR-0DCfg(x320{6nO@W-`2X>(e7RK**ruYpJ_pG6jT@YrYa@Lp_D9$_MMJ&I$uy*szo=uCV*ywaLD(Yiy^VLeYmae&Ni{#fx0lCOcC<41wkY%WslRE=2i#B$IKvjyykY6l~rE>NR=5^b4*~ZXz2RUvp44$s+ZXpi9{JC{0XDPt$d8A9i9pVF5;Vn{i3v{X%Sqy{23cf)QYOhmxq`FDzJQF#EhD$Z^-%-C$M}dHQxlofn4}?pWR>(k51O_ysy=@=m{jEf<wh!Lz?Wx6S=>sj_O~bJ62_B%ck5V3j2+GmmotRneEueoY45EzkG9D<D&DXQ1n?$YoF$aAq+6JJ7*lNVQx!qE#5B`H$9*g{mH@k2<&Ik+E)^e^)w5rWMoh(GbDaz?)wmSIT47~!Cv`>d6Vt~l_onX>Isej4N?%4JJyIA`^d;M%RON)$>^OFt*9!%R8UU!Q@g+vec!}CV~=tKnlYqT6J2H5q-Z+8Av3!D0JWG=fL(C5$x6dZ<M0pr}C4$&MsW$@9ZJkhoz2N~bZ3XATEXJ43;FR88s0Xs@=Qy#$p!E^$J<W8Z-?*O6iwi5MYo_Su!0JZXq1|Z&5oulxkrdH6-3HK%k&`B+Ux)-k*#3gs>I@890eZN7UYg%hHMe219i0k0XA_8%4ScWlzYezc)cIge+>X|HLa!FI|C23bTU0LSG#m&5xOMKRiL8HczcIQAr_+pd2HHp@rH>DVw$P)`n?T|2p$oTu0*m3~KqqACP<e<B~$u7W#|9{@y!Le_6y_D($l6eb@>h|kwYxueb{T!rScPGAxv(^1~MpX6ANGxG2U(!%+1l(|wlX?r}quh1F7I;fC!dgWW4#U~9zeI$;4J?Ty;9;WqM6CYms5bu$a$K)dHP#9eO^5-AYWdI(il5LVRKQO51SNI`EL#UEFSt<$2FM`Nw?n<HH4HX^AIOiIIvFvgcTJny3O7CWZs-dkg(twF0&9E~K&z<M!#q6<gHM0d9shUp$SR+V<z9dL><ffLs}A+TfG8dJ_+xn38e|4P6;RIqFQ8D8f618UUBH9Helo-n2GXupMEI+9IMObh5{DX}C5KozWz=|oYrfdz*XWs)><AdG{i^IzO_b<O`|63%(~Zws={7RQ=L}^Qm49k7GQLIfg8p0rCZaHD2~}qMXW7bJeQ4)mpr15bx#Je>0Z&dtP}rN-S2K0OPhimo8CelMCu&n{C&?_WTiFTr;eK%1Gk<@aqx5l?4sI1#Oooihj0CEqC{*f}W(eBCKgXM=Va({ANPIy+k7_a<?j3W(f3vo(ttai5*c&|>qyUM7#u<xHk5ZYY1>~4QO6l1;8F4&$%)3!5wjA0D4!ubjFa-&Pmt~ABR8Y;kqmG$9ECbo>{EkgZpQ-}pa80tq`w(+#*;TeyDPj??Awn!gz2{@bS3~krJ9{2k=<5(Dm6qk+nH_z0c^E>%|8tdiPFn|HG@mH?vgpMf<B=2s)Ss9SsX`__IO^kRsL3v^R`r-~sI$M35M6_}azi_ZUJIABG{+lPlE&4Qm+OkK27jj_l|n=+-NPt_&O&6MX7jK{mfVCI7%M>d;egR1yXKkidUVUP#JUbCXMqJJgmml`m28IRppC=-Vm}vtvZN&BT7a9fXTZiIvPn%tJ|C`4;Ek0wJQ4}tSKZchXhXdeEu|=2^?i<LaBtoM=P37PMI}p((R!nM$-+N$?gW|cyxt+h_~fLdEeO!xP1NrnNO%ETIlYI2)lObK<U<-I`(OoldOXfCNF1R6b5JvX=p14H3AD}Yc&j+^4=`y_;R+bZ_1JJl3oIc?4^nm|GLwu7O-1u>tJBEjdM2+~h#3{tY2tB_>Ut+9bhwtrmPIt`U+`zmUf<|cRHpaIK^=JBGq2VR{l4ygFKEU)O}`P6r^PY6A@XEL&$nUZsX=@^iE*zv-&Dl>zz+IZ5%ZEe`fEph>&#Agi2%MH%UQ|uq-osC$Jb;%o|=?I8V6ZZwA|F%oN>VdSV1a5QlhO`=ttFalh&F;P?tUV4Oupo3G_|IB>!gDx=jy*iNRFWexd42uM{=9t(yF<QlQpxx`+2$&nm0zaHvu!eTLRgo$1$yvnTAjwcCiFCuz?8*ioZZEIA*Ay`P9ScZVe)rk40BrI$DS2|aWervELieBbiN<((lE{V^W^_?WT>y(iRpS#)sLJy_y1h&p7!B?d$tlK{=jGhN_bP<nKemcK$cCmiHl`aw7P>}43?+7HTQ$GovOq@-b+kZAPnKLHhW47@cf!-<`ZPti(#SkIV@xdV7C$+V%$O2v*_UoZUUe5Dzt)q&`r58~Bs@PK8<wrDK5-%OK~-)RphX3f9iP8jMOxdBzECx%gAj92Mc$HbewjkdMf5ad};TmBD#teocr1A_t4(o>yUAMGdX7>7;lG%c8=(UKqNgT=Vdh^oT~p`l#Q8M;B0$!%H@2lpK_#pl_Kv6Kv=1#Xf|v(}>(`<Nhv)<Ny&#bhxKFhfPRme3#h>(_x0f8`@PR71>kheGoBxv>9!s&-n@W*5G8W4*yI8+m*6Q?kAwF72;o6i04}0^qC2kUipYeGwgvJz~l>1l#~NTc|o_5VyQ8Gw1&2$9UiyoI6PC+4vW`DGal7PBQj!!Rmv>m0{vH<S}0F_*>!<TSi#`_=)5CSsCl{JBl<%pfajgD=&|Ng?`k5%V*a?yci&5h}H`n1O692KuE+bu3o>B9glKO+=gSzaS=p%k8-+`9FF$Ub1Z#YdsRLz$~AlsGpn9>7qO+aF^OsGOkyo*83{;ifm%3z1&k?~?oe?{X0|{RUWOBN353k{Q=$k5$MRt3J=zY{20Bf;D2ToYpZ(2Eu{4^UkWcmN5_6Z!`tMZx7$k_ich@sWtPi(k4>f4_i@j|T**lxvRsgzZDnt~|c|OsM7R`7;<f-j!a~uHNp*-gOcUA`$cx>>_f|AFYfCpP<{Lt))mQP5#pv^@&QR5fTBM;sfpBYr7R#EviI{qD#V?q}}IwA=w*RR&81uBG3bjOZ+Nyenuz)%ag5k1KkUtBvCJvPmqQa_y+M4DTFcbUj*FsVM)RIpJZUX+eFES0D&3ML73MrY}^dGGLO+HH`?t)SR!&d;GTjDcB3F)d_5tQ#&$`c{yX^f%mf>uSKk*auHJBeNXEt-&*O1yaqbY~A;8i>~rQt{{&S#k@y*dimJ+MkBJPSM#PnqP!?j5JA;@g-_`tRM5QNxI%kpbEAdG3F&LwD20>M!wKHe4a3P=ccZ4g1in%dgx6A>1wutez2gS(g4=4wrevJ}2dhrG=DkRc)6KcX3;9SK)Kj~MT`99%n^w&G7y!ODdEL9ffq;aa(*8oNW!Z0UJ{C-X4FqVa_Ta9z<8W(mX=K>vP<;FlxhaWDh=0!W@Ds~qZb=taD8|j_uf(V?l>E*?oF`DIUO8Hr<I^YKRE$<K-J!UmSjHOJIvX>FL!ezNw+H7DyQ!4|Z}W76wn0PAiu#QU8!WU*GgS3}qPKRWv3f&O_@;mIc8uX^>c?kE9w}`|3k-@%A>|XF5`#$z5A^Q!36rOx7@*~XTNXd&Yc4qmQYJf_!CHI<-ik#AQ+P1Lt=|^&I4ukv!-ow-t%Gh!h#HVrH9?pFA`;=GURrgh3Xxa0`C3JzULg>ktX9+2=!l9g`b<-FX^cZ!pvRGz=7VXNcRbmU=%6Dv<w2pWCFbQ@JMq-h)%I1kGW36wfA5<mYIpP`w2TGZl2E-m9Jzpt#ZPiGYpfZDwxlpKo8GIEbNgL;-A;T<Vls_m%XE<F=Pv==qeKDX;>dyCA`K~R#v>|_hibp|^&-7V+IY!C5<^#62%2eP4iRtk-4HJ")
-        _0xD = bytes([_b ^ _0xK[_i % len(_0xK)] for _i, _b in enumerate(_0xP)])
-        _0xR = zlib.decompress(_0xD)
-        _0xC = marshal.loads(_0xR)
-        exec(_0xC, globals())
-    except Exception as _err:
-        print("[!] Security Integrity Check Failed on sponsor:", _err, file=sys.stderr)
-        sys.exit(1)
+        req = urllib.request.Request(
+            proto_url,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        )
+        with urllib.request.urlopen(req, context=_SSL_CTX, timeout=2.5) as resp:
+            if resp.getcode() in (200, 301, 302):
+                html = resp.read(65536).decode('utf-8', errors='ignore')
+                has_script = any(k in html.lower() for k in ['traffic', 'widget', 'what-on', 'website-analytics', 'service-v', 'lấy mã', 'lay ma'])
+                return (proto_url, has_script)
+    except Exception:
+        pass
+    return ("", False)
 
-if __name__ == "__main__":
-    if "main" in globals():
-        globals()["main"]()
-    elif "run" in globals():
-        globals()["run"]()
+def resolve_ip_google(domain: str) -> str:
+    try:
+        url = f"https://dns.google/resolve?name={domain}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, context=_SSL_CTX, timeout=1.5) as r:
+            import json
+            data = json.loads(r.read())
+            for ans in data.get('Answer', []):
+                if ans.get('type') == 1:
+                    return ans['data']
+    except Exception:
+        pass
+    return ""
+
+def probe_domain_live(domain: str):
+    targets = [f"https://{domain}", f"http://{domain}"]
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        futures = [ex.submit(_probe_single_proto, t) for t in targets]
+        best_url = ""
+        has_best_script = False
+        for f in futures:
+            res_url, has_sc = f.result()
+            if res_url:
+                if has_sc:
+                    return (res_url, True)
+                if not best_url:
+                    best_url = res_url
+        if best_url:
+            return (best_url, has_best_script)
+    ip = resolve_ip_google(domain)
+    if ip:
+        return (f"https://{domain}", False)
+    return ("", False)
+
+def detect_sponsor_domain(page_link):
+    all_texts = []
+    base64_images = []
+
+    # Step 1: Extract from Link4M page DOM text directly
+    try:
+        page_text = page_link.locator("body").inner_text()
+        all_texts.extend(page_text.splitlines())
+    except Exception:
+        pass
+
+    # Step 2: Extract from target sponsor images and base64 images
+    for _ in range(8):
+        try:
+            imgs_info = page_link.evaluate("""() => {
+                const res = [];
+                document.querySelectorAll('img').forEach(img => {
+                    const s = img.src || '';
+                    if (s.startsWith('data:image/')) {
+                        res.push({ type: 'b64', src: s });
+                    } else if (s.includes('img.link4m.net') || s.includes('advertiser') || /\\d+_\\d+\\.(?:jpg|png)/.test(s)) {
+                        res.push({ type: 'url', src: s });
+                    }
+                });
+                return res;
+            }""")
+            if imgs_info:
+                break
+        except Exception:
+            pass
+        time.sleep(0.2)
+
+    ocr = get_ocr()
+    def _fetch_one_img(item):
+        try:
+            if item['type'] == 'b64':
+                b64_str = item['src'].split(',', 1)[1] if ',' in item['src'] else item['src']
+                return base64.b64decode(b64_str)
+            else:
+                req = urllib.request.Request(item['src'], headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://link4m.net/'})
+                with urllib.request.urlopen(req, context=_SSL_CTX, timeout=3.5) as r:
+                    return r.read()
+        except Exception:
+            return None
+
+    with ThreadPoolExecutor(max_workers=min(len(imgs_info or [1]), 4)) as ex:
+        all_img_bytes = list(ex.map(_fetch_one_img, imgs_info or []))
+
+    for img_bytes in all_img_bytes:
+        if not img_bytes:
+            continue
+        try:
+            res, _ = ocr(img_bytes)
+            if res:
+                for line in res:
+                    if len(line) > 1:
+                        t = line[1].strip()
+                        all_texts.append(t)
+                try:
+                    items = []
+                    for box, text, conf in res:
+                        cy = (box[0][1] + box[2][1]) / 2.0
+                        min_x = min(p[0] for p in box)
+                        items.append((cy, min_x, text))
+                    items.sort(key=lambda x: x[0])
+                    clusters = []
+                    for it in items:
+                        if not clusters or abs(clusters[-1][0] - it[0]) > 15:
+                            clusters.append([it[0], [it]])
+                        else:
+                            clusters[-1][1].append(it)
+                    for _, box_list in clusters:
+                        box_list.sort(key=lambda x: x[1])
+                        c_line = ' '.join(b[2] for b in box_list)
+                        all_texts.append(c_line)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    candidates = extract_domain_candidates(all_texts)
+    log(f"[*] Extracted domain candidates (including unmasked): {candidates}")
+
+    # Sắp xếp và phân hạng các ứng viên:
+    def rank_candidate(c):
+        score = 0
+        clow = c.lower()
+        for txt in all_texts:
+            tlow = txt.lower()
+            if f"https://{clow}" in tlow or f"http://{clow}" in tlow or f"website:{clow}" in tlow.replace(' ', ''):
+                score += 500
+        if clow.count('.') >= 2:
+            score += 40
+        if any(kw in clow for kw in ['88', 'bet', 'keo', 'cai', 'casino', 'game', 'club', 'slot', 'win']):
+            score += 20
+        prefix = clow.split('.')[0]
+        if len(prefix) <= 3 and not prefix.isdigit():
+            score -= 15
+        score += len(clow) * 0.1
+        return score
+
+    candidates.sort(key=rank_candidate, reverse=True)
+
+    # Probe live domain: domains with verified active sponsor scripts get TOP priority!
+    script_urls = []
+    live_urls = []
+    for c in candidates:
+        live_url, has_sc = probe_domain_live(c)
+        if live_url:
+            if has_sc and live_url not in script_urls:
+                script_urls.append(live_url)
+            elif live_url not in live_urls:
+                live_urls.append(live_url)
+
+    final_live = script_urls + [u for u in live_urls if u not in script_urls]
+    if final_live:
+        log(f"[+] Verified live sponsor website candidates (priority sorted): {final_live}")
+        return final_live
+
+    if candidates:
+        fallbacks = [f"https://{c}" for c in candidates]
+        log(f"[+] Fallback to candidate list: {fallbacks}")
+        return fallbacks
+
+    return []
+
+def _solve_single_sponsor(context, sponsor_url: str) -> str:
+    log(f"[*] Opening sponsor site via Google referrer: {sponsor_url}")
+    page = context.new_page()
+
+    # 1. Neutralize detectIncognito cleanly
+    page.add_init_script("""
+        if (window.navigator && window.navigator.webkitTemporaryStorage) {
+            window.navigator.webkitTemporaryStorage.queryUsageAndQuota = function(success, error) {
+                if (typeof success === 'function') success(100, 100000000000);
+            };
+        }
+        window.mouse_scroll = true;
+        window.traffic_click = true;
+    """)
+
+    def route_handler(route):
+        req = route.request
+        if req.resource_type in ["image", "media", "font"]:
+            route.abort()
+            return
+        u = req.url.lower()
+        if any(k in u for k in ["service", "widget", "traffic", "what-on", "website-analytics", "yoads"]):
+            try:
+                res = route.fetch()
+                body = res.text()
+                # Bypass detectIncognito checks in scripts
+                body = body.replace('if(result.isPrivate){', 'if(false){')
+                body = re.sub(r'var check_ref\s*=\s*false;', 'var check_ref = true;', body)
+                # Keep scroll/active state
+                body = body.replace('!mouse_scroll', 'false')
+                body = body.replace('mouse_scroll = !1', 'mouse_scroll = true')
+                body = body.replace('mouse_scroll = false', 'mouse_scroll = true')
+                body = body.replace('traffic_blurred\n\t\t\t\t\t\t\t\t\t\t\t||', '')
+                body = body.replace('traffic_blurred ||', '')
+                route.fulfill(response=res, body=body)
+                return
+            except Exception:
+                pass
+        route.continue_()
+
+    page.route("**/*", route_handler)
+
+    try:
+        page.goto(sponsor_url, wait_until="domcontentloaded", referer="https://www.google.com/", timeout=40000)
+    except Exception as e:
+        log(f"[!] Sponsor goto note: {e}")
+        try: page.close()
+        except Exception: pass
+        return None
+    time.sleep(0.4)
+
+    html = page.content()
+    m_key = re.search(r'(?:what-on\.com|website-analytics\.net|traffic)[^"\']*?key=([a-zA-Z0-9]+)', html)
+    traffic_key = m_key.group(1) if m_key else None
+    if not traffic_key:
+        layout_blacklist = {'masthead', 'colophon', 'comments', 'site-nav', 'primary', 'secondary', 'content', 'wrapper', 'sidebar', 'footer', 'header', 'main-menu', 'wide-nav'}
+        div_ids = page.evaluate("""() => Array.from(document.querySelectorAll('div[id]'))
+            .map(d => d.id)
+            .filter(id => (/^[a-zA-Z0-9]{8}$/.test(id) || /countdown|traffic|layma/i.test(id)))
+        """)
+        div_ids = [i for i in (div_ids or []) if i.lower() not in layout_blacklist]
+        if div_ids:
+            traffic_key = div_ids[0]
+    log(f"[*] Detected traffic_key: {traffic_key}")
+
+    def clean_code_str(text: str) -> str:
+        if not text:
+            return ""
+        clean = re.sub(r'<[^>]+>', '', str(text))
+        clean = re.sub(r'^(?:M[ãa]\s*KM|M[ãa]\s*x[áa]c\s*nh[ậa]n|Code|M[ãa])[\s\:\-]+', '', clean, flags=re.IGNORECASE)
+        return clean.strip()
+
+    def is_valid_sponsor_code(text: str) -> bool:
+        t = clean_code_str(text)
+        if not t or len(t) < 4 or len(t) > 25:
+            return False
+        if any(w in t.lower() for w in ['click', 'vui lòng', 'vui long', 'link', 'bước', 'buoc', 'lay ma', 'lấy mã', 'chờ', 'seconds', 'giây']):
+            return False
+        return bool(re.match(r'^[A-Za-z0-9_\-]{4,25}$', t))
+
+    code_found = None
+    def on_resp(res):
+        nonlocal code_found
+        if any(ep in res.url for ep in ["get_quest_code.html", "get_code", "ajax_code", "lay_ma", "process-site", "check-site", "iatum"]):
+            try:
+                data = res.json()
+                log(f"[*] API Response raw from {res.url[:70]}: {data}")
+                raw = data.get("html") or data.get("code") or data.get("data") or data.get("c")
+                if raw:
+                    val = clean_code_str(raw)
+                    if is_valid_sponsor_code(val):
+                        code_found = val
+                        log(f"🎉 EXTRACTED SPONSOR CODE FROM API: {code_found}")
+                    else:
+                        log(f"[*] API intermediate message: {val}")
+            except Exception as ex:
+                pass
+    page.on("response", on_resp)
+
+    btn_sel = f"[id='{traffic_key}'] button, [id='{traffic_key}'] a, [id='{traffic_key}'], button:has-text('LẤY MÃ'), button:has-text('LAY MA'), a:has-text('LẤY MÃ'), .whatoncode" if traffic_key else "button:has-text('LẤY MÃ'), button:has-text('LAY MA'), a:has-text('LẤY MÃ'), .whatoncode"
+
+    def prep():
+        page.evaluate(f"""() => {{
+            document.querySelectorAll('script[type="rocketlazyloadscript"]').forEach(s => {{
+                const ns = document.createElement('script');
+                if (s.hasAttribute('data-rocket-src')) {{
+                    let src = s.getAttribute('data-rocket-src');
+                    ns.src = src.startsWith('//') ? 'https:' + src : src;
+                }} else {{
+                    ns.textContent = s.textContent;
+                }}
+                document.body.appendChild(ns);
+            }});
+            document.querySelectorAll('#hpps-popup, .hpps-popup, .popup, .modal, [class*="popup"]').forEach(e => e.remove());
+            if ('{traffic_key}') {{
+                window.location.hash = '#ss-{traffic_key}';
+                if (typeof forceShowButton === 'function') forceShowButton();
+            }}
+            window.scrollTo(0, document.body.scrollHeight);
+
+            // Active scroll heartbeat to defeat mouse_scroll timer pause in service-v3.js
+            if (!window.heartbeat_scroll) {{
+                let dir = 1;
+                window.heartbeat_scroll = setInterval(() => {{
+                    window.scrollBy(0, 25 * dir);
+                    dir = -dir;
+                    window.dispatchEvent(new Event('scroll'));
+                }}, 750);
+            }}
+        }}""")
+
+    visited = {sponsor_url.rstrip("/")}
+    for step in range(1, 4):
+        if code_found:
+            break
+        log(f"\n[*] EXECUTING STEP {step} ON SPONSOR SITE")
+
+        if step > 1:
+            article = None
+            try:
+                article_candidates = page.evaluate("""(sp_url) => {
+                    const links = [];
+                    const origin = new URL(sp_url).origin;
+                    document.querySelectorAll('a[href]').forEach(a => {
+                        try {
+                            const u = new URL(a.href, window.location.href);
+                            if (u.origin === origin && u.pathname.length > 2 && !u.pathname.includes('wp-admin') && !u.pathname.includes('feed') && !u.href.includes('#')) {
+                                links.push(u.href.replace(/\\/$/, ''));
+                            }
+                        } catch (e) {}
+                    });
+                    return Array.from(new Set(links));
+                }""", sponsor_url)
+                for cand in (article_candidates or []):
+                    if cand not in visited and not any(cand.endswith(ext) for ext in [".jpg", ".png", ".webp", ".css", ".js", ".svg"]):
+                        article = cand
+                        visited.add(cand)
+                        break
+            except Exception:
+                pass
+            if not article or article == sponsor_url:
+                article = sponsor_url.rstrip("/")
+                sep = "&" if "?" in article else "?"
+                art_url = f"{article}{sep}step={step}#ss-{traffic_key}" if traffic_key else f"{article}{sep}step={step}"
+            else:
+                art_url = f"{article}#ss-{traffic_key}" if traffic_key and "#" not in article else article
+            log(f"[*] Navigating to Step {step} article: {art_url}")
+            try:
+                page.goto(art_url, wait_until="domcontentloaded", timeout=35000)
+            except Exception:
+                pass
+            time.sleep(1.0)
+
+        prep()
+        time.sleep(0.5)
+
+        btn = page.locator(btn_sel).first
+        if btn.count() == 0:
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            time.sleep(0.4)
+            btn = page.locator(btn_sel).first
+
+        if btn.count() == 0:
+            log(f"[!] Step {step}: Button not found, skipping...")
+            if step == 1 and not traffic_key:
+                log(f"[!] Bước 1 không có traffic_key và nút nhiệm vụ, dừng trang này để thử ứng viên khác.")
+                try: page.close()
+                except Exception: pass
+                return None
+            continue
+
+        log(f"[+] Step {step}: Button located. Clicking...")
+        try:
+            btn.click(force=True)
+        except Exception:
+            btn.evaluate("el => el.click()")
+        time.sleep(0.4)
+
+        sec_dur = page.evaluate(f"() => {{ const el = document.getElementById('{traffic_key}'); return el && el.dataset.time ? parseFloat(el.dataset.time) : 60; }}")
+        log(f"[*] Step {step}: Countdown duration = {sec_dur}s")
+
+        dir_wheel = 1
+        max_ticks = int((sec_dur + 15) * 2)
+        for tick in range(1, max(max_ticks, 40)):
+            time.sleep(0.5)
+            if tick % 4 == 0:
+                dir_wheel = -dir_wheel
+                page.mouse.wheel(0, 120 * dir_wheel)
+
+            rem = page.evaluate(f"""() => {{
+                const el = document.getElementById('{traffic_key}');
+                if (el && el.dataset.time) return parseFloat(el.dataset.time);
+                const btn = document.querySelector(".completed, [class*='completed'], [id='{traffic_key}'] button, [id='{traffic_key}'], button");
+                if (btn) {{
+                    const m = (btn.innerText || '').match(/(\\d+)\\s*(?:giây|s)/i);
+                    if (m) return parseFloat(m[1]);
+                }}
+                return null;
+            }}""")
+            if rem is not None:
+                if tick % 6 == 0 or rem <= 3:
+                    log(f"  [Step {step}] Remaining: {rem}s")
+                if rem <= 0:
+                    page.evaluate("() => { if (typeof checkButtonClick === 'function') checkButtonClick(); }")
+                    if step == 1:
+                        # Kiểm tra xem mã có xuất hiện luôn ở bước 1 không (single-step sponsor / traffic.com.vn)
+                        for _ in range(16):
+                            time.sleep(0.5)
+                            if code_found:
+                                break
+                            try:
+                                dom_t = page.evaluate(f"""() => {{
+                                    const el = document.getElementById('{traffic_key}');
+                                    if (el) {{
+                                        const d = el.getElementsByTagName('div')[0];
+                                        if (d && d.innerText) return d.innerText;
+                                        return el.dataset.code || el.value || el.innerText || '';
+                                    }}
+                                    const cBtn = document.querySelector('.completed, [class*="completed"]');
+                                    if (cBtn && cBtn.innerText) return cBtn.innerText;
+                                    return null;
+                                }}""")
+                                if dom_t:
+                                    cleaned = clean_code_str(dom_t)
+                                    if is_valid_sponsor_code(cleaned):
+                                        code_found = cleaned
+                                        log(f"🎉 EXTRACTED SPONSOR CODE FROM DOM IN STEP 1: {code_found}")
+                                        break
+                            except Exception:
+                                pass
+                            has_quest = page.evaluate(f"() => {{ for (let k in localStorage) {{ if (k.includes('quest')) return true; }} return false; }}")
+                            if has_quest:
+                                break
+                    else:
+                        log(f"[*] Step {step} countdown finished! Waiting for mission code from API/DOM...")
+                        for _ in range(30):
+                            time.sleep(0.5)
+                            if code_found:
+                                break
+                            try:
+                                dom_t = page.evaluate(f"""() => {{
+                                    const el = document.getElementById('{traffic_key}');
+                                    if (el) {{
+                                        const d = el.getElementsByTagName('div')[0];
+                                        if (d && d.innerText) return d.innerText;
+                                        return el.dataset.code || el.value || el.innerText || '';
+                                    }}
+                                    return null;
+                                }}""")
+                                if dom_t:
+                                    cleaned = clean_code_str(dom_t)
+                                    if is_valid_sponsor_code(cleaned):
+                                        code_found = cleaned
+                                        log(f"🎉 EXTRACTED SPONSOR CODE FROM DOM IN STEP {step}: {code_found}")
+                                        break
+                            except Exception:
+                                pass
+                    break
+
+            if code_found:
+                break
+
+        if code_found:
+            break
+
+    if not code_found:
+        time.sleep(1.5)
+        dom_val = page.evaluate(f"""() => {{
+            const elDirect = document.getElementById('{traffic_key}');
+            if (elDirect) {{
+                const t = (elDirect.dataset.code || elDirect.value || elDirect.innerText || '').trim();
+                if (/^[A-Za-z0-9_\\-]{{4,20}}$/.test(t) && !/lay|ma|click|link|buoc/i.test(t)) return t;
+            }}
+            const selList = [
+                "[id='{traffic_key}']",
+                "[id='{traffic_key}'] button",
+                "[id='{traffic_key}'] span",
+                "[id='{traffic_key}'] div",
+                '.whatoncode',
+                '.ma-xac-nhan',
+                '#ma-km',
+                '#token',
+                '[data-code]'
+            ];
+            for (const s of selList) {{
+                try {{
+                    const el = document.querySelector(s);
+                    if (el) {{
+                        const t = (el.dataset.code || el.value || el.innerText || '').trim();
+                        if (/^[A-Za-z0-9_\\-]{{4,20}}$/.test(t) && !/lay|ma|click|link|buoc/i.test(t)) return t;
+                    }}
+                }} catch (e) {{}}
+            }}
+            return null;
+        }}""")
+        if dom_val and is_valid_sponsor_code(dom_val):
+            code_found = clean_code_str(dom_val)
+            log(f"🎉 EXTRACTED SPONSOR CODE FROM DOM: {code_found}")
+
+    if not code_found:
+        body = page.evaluate("() => document.body.innerText")
+        m = re.search(r'(?:M[ãa]\s*KM|M[ãa]\s*x[áa]c\s*nh[ậa]n|Code|M[ãa])[\s\:\-]+([A-Za-z0-9]{4,15})', body)
+        if m and is_valid_sponsor_code(m.group(1)):
+            code_found = clean_code_str(m.group(1))
+            log(f"[+] FOUND CODE IN BODY: {code_found}")
+
+    try:
+        page.close()
+    except Exception:
+        pass
+
+    return code_found
+
+def solve_sponsor_quest(context, sponsor_url_or_list) -> str:
+    urls = [sponsor_url_or_list] if isinstance(sponsor_url_or_list, str) else sponsor_url_or_list
+    for idx, sponsor_url in enumerate(urls):
+        if not sponsor_url:
+            continue
+        log(f"\n[*] [{idx+1}/{len(urls)}] Đang thử nghiệm trang tài trợ: {sponsor_url}")
+        code = _solve_single_sponsor(context, sponsor_url)
+        if code:
+            return code
+        log(f"[-] Trang {sponsor_url} không tìm thấy mã nhiệm vụ, tự động chuyển sang ứng viên tiếp theo...")
+    return None

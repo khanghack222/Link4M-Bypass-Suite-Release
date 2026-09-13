@@ -1,41 +1,489 @@
-# -*- coding: utf-8 -*-
-# Link4M Security Engine - Protected Native Module: layma_runner
-# Protected by polymorphic bytecode encryption & anti-tamper integrity checks.
-__author__ = "khanghack222"
-__version__ = "4.2.0"
-__obfuscated__ = True
-__integrity_hash__ = "fdab583a610b6b4e924b1bae4e7a6aaa1bad97eb9b480bd22d914521110f9ead"
+import sys, os, time, re, io, json, requests
+sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+import cv2
+import numpy as np
+from PIL import Image
+from concurrent.futures import ThreadPoolExecutor
+from playwright.sync_api import sync_playwright
 
-import sys, os, zlib, marshal, base64
+BASE_DIR = r"C:\Users\XUAN\.gemini\antigravity\scratch\Link4M_Bypass_Suite"
+DEST_FILE = os.path.join(BASE_DIR, "DESTINATION_FINAL_URL.txt")
+CODE_FILE = os.path.join(BASE_DIR, "extracted_code.txt")
 
-# Try loading high-speed native C machine code (.pyd) if available
-_pyd_loaded = False
-try:
-    _dir = os.path.dirname(os.path.abspath(__file__))
-    if _dir not in sys.path:
-        sys.path.insert(0, _dir)
-    import layma_runner as _pyd_mod
-    for _attr in dir(_pyd_mod):
-        if not _attr.startswith("__"):
-            globals()[_attr] = getattr(_pyd_mod, _attr)
-    _pyd_loaded = True
-except (ImportError, AttributeError):
-    _pyd_loaded = False
+executor = ThreadPoolExecutor(max_workers=9)
+http_session = requests.Session()
+http_session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+})
 
-if not _pyd_loaded:
+def analyze_tile_url(args):
+    idx, url = args
+    if url.startswith('/'):
+        url = 'https://frame.103-141-140-153.sslip.io' + url
     try:
-        _0xK = base64.b85decode("OESA!{v~wV-rAg}r~*qW?es3i2P#&pxwD<v7I$9X")
-        _0xP = base64.b85decode("Gw2Q`msM|!M1rfSN+Ja`%`|PVRgNCxoy&E4Za(6hnv@gSYC%0s@A@Y0>HtcBR@J}tKg+s<h!;<GH~K=ZcR)A8OG2Gj_&d_U!<W)VDB)G3GJ}uDju<*zVq$fz?rsjC>z}fKHR9ERcj--H?eGV$!3#(fSIuB{`4534l}Ti=0jtp_cSuWkGjc~!ZDlr0{F~ibtPB;CL9!cqKWF9+w{n4=YpzioFeMfr`oa8=e0zQN%%tcFLkMrc<v0X8G+m`redr0<dzP|@v`%?EDtUk)@2@^+J#zOsk2wlPfr0K9rG8}=s=+mgr7_Q41&NvuPa<<4#)ZK@;>s`|TH8{sZ$eO@z#-<29MVv9gC3VSB!`}?M$-B^;byh>c^7EpSYZRlL+2T!W|0c}g%e#h8aw>|INe!zcOkEa>Zv*jN?o9`r1-E+#ha$c)jB;|i2$5;ZLP6J_H#gd*!<fL|EwSe-PYndSfK9SBUjg=Xjf|8K7a<dH?A4G2b_A*Sr%pVHXFRB&565b9tFrP47FoTo<cABDSy8q<3CAU5%cK3GnA#^H;HP5<)uP0-6_s${KM)MpDz#*b$CC@kAzk1b!FKf9^HTp&I~in6N-qlTiiQxjk=L>W4~FIl}#ft=FeS^DDU_mm7_QHy*j)u*<u%WQDuRMy29T7JcIRBn$RPJrz0MvGL7HETXn$zr{U^p(?Dq7Dx>vHtpJeQWNEWP-UN5<C<!1Y+l-rr>l4#}S>4Vl1g-iKRXRASRm2_%^{<^<Fo>Ol&>pts#1Iejbdkm}7YB`kqU-nrgIEM@3zNI8%VG~VFJX=8H0>TyM^0T9l4dRtlY^-|i$oa>o_d&8!6uA69bL^~2lQG}IUm}}V<jZK5XfDG&a`re>;Jb>-ptw@zu^cW0H!F&jf5BdSK}PUP<Kyx1G>wnjl-VY;xD?bSBH@2QNJTwz$k5PyC64rcIK~lTOO+3@!{RslGiG&I7}7@M8Ee+9GhZ`cM|_46B_$Qr;K-P#m{AcDrXCz=)YD_+<w%08v7Y=#%OV$TlKWf(qs~#^vDOVyX#iqyz6v6EHdqVX#$q;!x5Q6%TGc~g`k~La2X>%gq}V}go^1Znrws%IZj{3X2KN%2ea1mFMdj#xWJ-51x|TCufI%GeoKwuG4y7oBu$G#KQz4-81*yV4Mdeb(}QJ<=D-rvh)-(^WElE2cibxCmF@K6`Q_@DuAojwnm$`KP}-;9WnH#FrU{;K1C5mk;EU0q>jN477&}&MZu~)~fgV2+RXAQnbwK?NcumVw4O)LQ00wVv2+&=aQ)e$T5)qr3Vc$#d0f(tAb)92ASzyU@2v$l1M6Q3>4`=U+9%S0152O88r;QZR#bqy)rv~VcxS}H+?mn_(y>7jee95{68ecZxu2jY(bj$H4mMjGrsa%Cg<cH6)iRGc~vgC-}{AzVs=?VBzdsKV8b~%yKDx+nfLhL0gTUHrb>8$c5_D3<WTi&+jF92+Ykyo2AB?a7QQAK_Aaco0?pLhTf4hof^j4kf;W{CqQ)ghwuqDFW{hvj1ER!@}qp;!y1!KX2Pc?8RaPGwtw^f^Le;_Eyx5Mtf{-6g8vns_FIZ-l>hVPo4NPSUCcDI9|7S_l4UtQpMfxr%oI-~y!F&6%cB^kA_UBbu)KDuj5-KL(JGwhe!%s~9(h;CAhWL)G@Xiim6HjtHV2$MDOmPMW<J0yhq#ciT`r*~6S(@bzUNC)1%dP%*epkI&{i^Ey_291=7HTPa6<n{vm&x%<)az0XUCtPmUK`ht_<TU1N6j)UDQ;BA8<#59AC=-VrHen?iwXx?+R6ZCLEWjUzP`d?8U$+1n6%1~O4R&#7aHl2h7L#+#>COd5CQ<dR04(lWO9n6|WB?Vw}gNuB(`AB?Vz8pIAKG9Kj$8nJ$)K~;0!hH$We3JktK<KoGP{b1ZStMFyuxXILJ$)eR?2;mT-Tt<4vqP{YO^#9ROz#fivd$IN`6~y%15OwRw6|)SaU>H_xqf?f$*>FN%oD}{Cw%v&NXW_IJoERq?m^7s@d7;?e}YRyfHmvFClSK}aigrnb`qfV+YyJYff!Ilx{aI#K4%Z&sR0z|>~M_+x}cbDQ{%7Hb<9(kgOMYVV^kyqNddSqzm?d7lT~d=Gdi=99hb3pi*W;aPQr7ml;+)6%+S1gSgp`1QpSlG)QDHsu?Pr0r(lQ0L`O$dp5gs#*!v_4SS>7$FMN2+8y7YCME1r`3wVp;m!~xpYXTKuSN{%uq${|W4~Z_b$%4NdW%@p(WC)b;&AC6=U-}bhpe~o`A1*~;Wc4c_#U$xCZ1nkZYKrDEx+r@Y)}=PI*hj4F23;Fk;Cp{3+&dOeY`{C*NcjGgE*njqXj(iGl5Y`SH~`N3$TN?&M8y3;uNhQEwuO4+I29qkI#lpr3@tdue*|2dk*)~tH^h&oOdK~WHH?z{&x--HA~#d+vo@cUAiWo()=fL>oPBNsJ3N1dmci@xB%(#6%d<>~gzkJEd%y<~t8kW#wFvq|P=#m5+#Kk2r~!_f7F-H($||Ma5B|@Vga-aD`5B6W7#)n#$)_Oom8|Ri+@gv%VFFXp>uXR6Muas~4hL(aUkM7c?j2&n?2x1-<fatKJ~xUb937ez_>;1Gs|&|^HAsLtNR8xIfe9fgU9Q><`;|I=0h?J#>CNi~7Is~iHVHIU#{$B<+0bM&%nLX!xEpVId|DitiGUJn-`1AKBHQY$Ct{+=8RZb^Ot=(p7CA>Vcvzf3+UbUMNnUJjCBJ!2sAzt$g^3$VDxYXYN6O}kwzbf4<s8}SQCbYIE&}}6w{!W0V(c^7?L~EIK=(l5rbZ)y!P~d-V_`F#8O2twk4#)v4p>HtWUrTkJ}bJSEDf^}qi8?gn`6f)j2A*UOn{%-Pt6jz52m&pt=laVLImEEy87Wgsb8|gd5Cs~+y$Ww2i>Hxe7VfPM?7D31(xWPEh^lC)uK!#dHJo(MD7;tK*PX!wmf^7%as2-r<wnL)!bzbcl)*IW4#+4XAZ@5rA2)}AEH{@jqHrA0<V(Grc;s&drx6*il`l=@%Wgy_}GM9C+25=YKKw5hMKV`7;N91&Cz@r(-(Ay9W85sjiT)pZ-PfyIlH5m7F!}0*fo7*GCt_tk2U?jB6rB|B77us4rfS>p#;fm2kwJ0I{0|lw+mzTbX&wpL-ta`v&O}MGQ&-@-uH08+T?=oHj?BWlU;er6iWS7w?ARKvsm_5?H*ggPZL2W509nFn@j#ZLdMLFsD1Dmk0VAc^7;Uq=7CwDY&3jXp~F{6{mXjK+};l@DG@`8SKp;+V(F4*P+Fo{{LbHr$&1%pfynParE{&#WXvX?J&zp6{Ge6+(zKcWgZ<(mRfSyuM4iPdi;SLJ-=ff=@eSz#GJ$7BAOp<&1d=rd_9HR-ABh8&ZWXV2=|~2^q5>3{vh+s#C$d>*rcA+mnZY2qrPSxPB$u)kw>DI-m;9^lQ0G~S*%hCX0%aaO9vEl+6TCYwkRTs{ckv77962hSDOgz@U&5gG&D~gv+OF70VWj~jpeRGj;Iv|2T&1wjmi&?+qe^dL;QhOj`h18aCmy7ysPOE5ypI>YUqWPd1@P|Po2ZwPW(@!6%Wl$+_mk&pYU+dhjHnQUR4z;OU85c;f?lwxA(?@OF1$%GSvbtA7*Dl_<E7xDd9Wti)$|uNty~v=cN#~_@A9qq?(9oOi&q<A?^X~=N1zq;=qOOo3%nYrCU?HF1b8urCNL<<yaN?oS4H`830K1t;4B@F-fGyx9R`#U>iu^8;kub|s4}&6au1B~PB0M(H+%qgBK4EwRsMM4`u41V%M&Ic!>S;^X!fsYHS;F^MtFvEt-TWMHo?Wh&E@sSe7%FIo`ajxl8QdvbREB{D{Le~A9{NDcvuN=hanZB3S)Mn*H5l;SraFqdMGWhs4)UL$exxSyzMRwA~ZorN4(Oq3k0s_{e}91^J@03CJFWV9<ZdZWgCxSQK;I7zqI094l0CL;J2_ZoyFrXBB?Q|BQA9sGa5*Z1pmC&$it>Da-Sb#vD*D3&q)eKfmO>ZL-s6Oi`+C?XvS|DA3|J^CFHLf+wkHspYL8~md!&;w@7>yiUv&|ja^%eZk2XN>|duw<F%`K#$Mxa^%vVvg_Okj)Tw!SI_d=_-(tjH+}+|ha|kPK%+qb#Hc=2Mv8j^9E*2J{@S8s1y>G|IM^;4FaP_iay}K;9Nro)Cv#;I@NQ^45w<05r2w0?W;7C;g?(57$HVfF$KyWp;u61fqavRi9;Cr}>(EK4+rBd;8{eY?oh>v`qg&LL&6_Z~-{AHsau!6^Y?gBLFBJmmmF9`~N;VI%$xnzyGTEwJcd-T|YgL-EwazU-hNMccdF4l;{l>KglV&d?&&`fc*;%1xdX47@^`6k6b4h{>CFS$HR=kWb&ROuJ&u;T!$&}`Q#&i(33aC?~{{;XZ};a=t6((m3oz&MO<*?F+R{PpBxq#(`lJpEEMYxI7{)vny!Wjl~@P>oe0^E+z>16B=^J`{DVCU+}ur7KtFj%ALZ6aWUD@dd0|D)P%7Ga~|7X&QPUOzObUVi~;rH9m<jFo3mmtJ+Cx^ReK|cK2%@hxUS`Sh=HYQnYLW1n%XP&bOB?x!UBML|2lp<=<6?9qw(Ihr?OM$9WJqeSERp2s<TFB#KH*U*a(ALv`Ad%pr;4FRq*UeMmSsYNv5p*6<5Vme4H#4UbA^kw8tyOA#N5<hP|kPh)-)2zTeo?0YT;vKsJAP4nPwg`aG6d*r}K@C6Sw$II+Ed*kJL8AntGVc@)2P>%;Wmo$&6eQKM0<sVKI5c6sRY;Ol{TGMAU!+tt=vkpM)Gl02i?rhGRP^QUhUFl1O%#p5wxyuCZ``uR*|C?LlJ>e_$pQ>^G$`9bH$`$2`u=P#~%v~iT>X~;lWrVadw`l3K|ETQp(QhlE{4*pG1%3xd+iu_(e^<5Vp_Ziti*;XFyRn?$<K2;MKh%uPqYZ)<d#J<Lo9+5f*uz)A4o`R@AGMD3auh2A-SGp?H*-uO+;I&yPEL<i?w~#=+In;V_Q$!+-{b0oiI)Q}9CPBuI-j{+1kZfZ&1oP)Xa_V~<HjI$phgruWY9XHOp#RPS9ih0g<$av?lO5sBGr^$-~kAd`QDF-DE$mxukWi$!)lfF;R|EP$}ON0p>=XYV2<2U)mtR7^mZ|m?dKi?ZY%MDPNe|AUHX2U7|^kh*kw}Wpp}8~SQ&s{@e10L9TAu`|IOlY76%)6ieAVOAm`vT&%IanM8n~L1?q}B0U-BO;x}%gL>S=V28FczE8F>Ax`S^Il#|C%vM7R?oaDY7eOZGWf!BM_%J4RS->i-Um*|gdfJJK#JhM`1MEA4Tj_Sb>$$&PC{1*&J!8~u1Jz#_ui5}l|C5SP~EaWXZLZ1T$3U$_}XT$LDgr9mD2s6@WQ>%G}d)U%N<$tlXSi?4@g;bnQw*5&BNKK2P?M=hZ#u`kgN8;Od7IRc@|E7?0-B7P>U@Z*iPsW8pX_Md(`_MiND<1Dk;U=9EYpe^jNx1iV$?)FW{}f`pHJI9#5iTgUmiJ52-i4FOdGk+1+ao?7|NFn^KC><0>wB2xb&B`=T)P8!M{9S=ht|XkOb0cic@!iO6IEW$OvMaI%_4)~S2T6bmv_}LmLci$8S)`x3|zg5;hnDzSaD9?AyVP_*z$972$7?=Nq2pbWLX^`61ree2e{@~y%z|gFyt5uS#0PAh3HTee`z{4Ap^1pyrO5wRi-cyPe2}upwcDmcv+~tmV7zJ=MhVoCza@{%sG>mMMGtTT*BwAvt6wFgOx~m2*d;M>Io~2`3z_32;SL6g`cwh2{VFCx9Lp)>2?m-r_Y*IQ$pU+#>kG~Hy-tlo5(uBf1!0}b>h9ZX=_n*g0U7)TfBt}agdLR6g5e<E!xlvBnj4Jm;L0eZ6C6m3VJVA42HR^KX%AL5I6dj$~GPuW70*zAEem@%<h@GjRJf$cLAfmy9R~r<q5%;T8>6LJ>Z77Z3ooMShx40DWV3_>i5lruBa(8g3TZ>{bMTk@xK#C_9Ig#%Ikzz5{mKb?Z4MpCxBuXAKRDx{%JtRp?wAL*?~U>$NlY5&>ebemQo40S*&hzYxij(exFq&v8W)^6{(L~Wm5z(hW8IOXMp%;@%;N<K862vjn9bv!u<7$%TfGs(Sc9(CV96esTn6ky&`9a{6*d?2O^kv0vf*%HeV;i@CFPK0X#Rdthf2he-gLKp6(BKM{24Dx)O%J_g!6#{-U36d;$ohYEg2<ZUXi&%w-ziCBzV>E!eeg%OnQ$hscQXjjujLt<?i_IrhRj-yT;Ez>UJj*T?hQd{^mR&svW1;2Us%Pp;gM6@Pl3dO3$ejDaO%-<qOT2jVqu<WCM9y-C7gS${l+?25n8Q4!Rl{b~8)7^Xl_?fY8_{-^9WZ-wU<L^yJ-)UJPO>UcKMZL*~%q}0TP2KBto3ceZ7$G{rYQweiE@L@?k%QhxzRKszO6Tlm}pklT;l!CI`2~=IPQ!p-p{Cwl{DDLBpq1~Qyb@!b$B{$-RMP?rN8_VE*{$gcbyYR^yP1hjuqDVGpoPy)xN*baY$!?aS1)eJT%^T|==<|hx=)W;~nzkNDQ9ikvWKv+XI|3Ci%He~9rN0Doal7A2P0oO>9Spa=N{vpKqoo)WfQWhT-(s1MMhK?Ip)pTTn%ZL>F5V|g?$j#L?u@@JkDmfDGcLeP)(bWv;tTN4YOlnTF4J&ZnkOLq$VdQq+}Xq4^N-&Z7b_ZKJ{fTqP9?W5BnPM~LEzFU@ojHMd2BX#I#)FP@~hD^ZBYOH-#}7AV&9}74<G5k#)N&zWJx>hdNLKd1Zb+kaW%Xl!k4O8f)XeO!(J8vbWm$!HNxn-Fmsk0OqRyB)y!!Y_Cd-@A&8OuJ5A=hG=7VOHQ-!l3}o%YLxk}&b4O-N_u63WvG)r014D}x8a7n$fpmPMEP6bKl(pBD6v4(cYA`ufb{B4f3?V%O2@yC&zSfFz`f(3Go*@}HGW4!jMsdP`oy*i^1V5=eyFLXMS5cacXoAAU8^my0Xx??VR9zUrrqp9iX0Q#b=3^k=aZvWIu^Q64YDEM^!3|3bu;3gR5|WBm0e#yHs(2My-&6AUSGJVxKdQ%D3uhac4e&!T;UqwXhdK6{+O7sYm!668z{G9<MV&vQLV;oLI*MLm!Mzc^OyQctSSe;0u^TLqhw%#LqSr-z{*Q0kt|DM(UrAi;mJN(en)R*X+DfyZi2{GM{WuAG#~|7z>^4X;ULyz~&d>a;;j;>h6i;z#qO)}}^6R*HSlc-6B~pN+6R?09Rr6{>6?|Q(u75j3&jJh51PW=WOwPs0*Id-5`941|0t+GGj=W!?UG?VVfOtqm|ItgzVZ@tn49^scJ_c|>5FBEiYsoLUA)tD|n;qcPA1@I)@ws$GX}XnBWR;^lq%1VW8SZaiEL@qJ`Ba7TcH)8P1NvFTn3sXgew)xRtuOVPA9=BF8(ogkPf;+*UrE1mFd?ALcWtp9B3gw+-MGV{zvK!_m0yuweJz94Is&mA7{#zK0ycZL$f<n?FpBRIYjER#3_({Zp3Iuu-#K@XWRJT$UKmK^3XcrC#K(T1K;NEl3&2>6Y%+pr9kUZ_WG9Y{{O+CSJDunqu4N8~^qq)dpQ|w9;r(JTG9P?SCFa6p_DaP_zvsHhsKC7kKxNnez1RGc&T3a*TNnSM^lD<10yd(GaB2VFUX-CE03o4to%}qLpM{0DYIywBBrwD*x^Fel#0YqF;z=oO=h#Vd!ItL(Hi5ZEncZEes7dmdbB*6+v{|=*f52ghZ%SEIqVdhoBV7?to}s5m<ut0G^@0~OspCEsmR`IF%;tuV-~6MavnFk+;lB<_2fdx{2At@iX{Q}sN#JCv27N<AAmrnJMv+H=rY0PaU`ITL97Qj;w|Wkrpo7|vP?VHc5r`MYXG^axAHi&ELkyCa^Wzz^`GTcm9Ajp3%a13ish-y%$zcd-?uCcGbDpVh5aPdds5>4TIM!uMfOzUWO`G%2qKc!aREv>XMV)IHI@iE8Lg%U{P$HG@ut$Tne5l8c^^tYB>CxCL@cW4rhVkN1{KXeVQ>Irhbj>+(XYAf{1^aognpO%8<Uz7eX$o997nA7-J3s^FAHl7PIz1U_(=uP-3F7WAa;<B#SNr*Yv(D>TE`5wij7oVlkW(hhXKej0#U0yW=tzXjZ2(LkxgO>1-9R{@v+sG;T6RD*q-BI#_z7V(ARp;|OQt#w^b%ie@tndzZf33iw?|TN@fRI_u;LpMdZsz2L)j^aNM+2qIR?q_SZY+uo7!=Mmi=@Z^(H9Hf^)3BGve0WNv*|8R)$qv>oqGlOOsk!PD+!?Oo_0==nm6$di#}YNCVE#Eu!Tx9Lfq%AS7!x7<^owWBsFu{_-YBBZJ>r{f5gMGNQqLVb{bxOH7aF<|Vyjl1mZSF^I~DiN(@;au$1IM~$748NQ}*|B(>3HJN|_NB>+BJ@H?3f#RzE-<-zu^78y(cNF8yYjKjbWGCR)2|QhKQ8f5FQfm3N$1WfIDZAlyq_~G(cpjh_j~2^whKjC#=DcFRp|tzgU(F-lqwY!2U5zocPt**OJpe~9B+Pz@1M~L7EJvM4#JUa_NFydRv<y#@^8Zt~%s&f>1Z4Wf?U0eQ`=0}ynlgOy(kdy9VU0COSWry?;uJ<ng(e{}bEyEkO52h+AyPD*N-g1DUP{!rnEE(;Yq0-C;S%aGq)zkdKfwzN$>vnS=&_7KbZhDlM7wp6`KP1`9UF?X&N)9}wh<gQQhLgm27d@HMX{?KW`F<q(OeRz60<sPgahdG&n`*$sXr>I0k{83V;F~sFl((3r{krxq$%Q0eFA)rH_60o$`mr6pO;mgUN-O@PEm;+WY7SDe2b?AWG*N@OC7lG?M%e2{~l!UrS^;1oiPIUa649*OlD{it%&~nj7)d3E0K0QANMjiIoX6fI7e=_3s)z8Y&zL_AM6>7RXrLau>rYlmODOv^q)<z(bj4ym0c@f>Ua>vQ5!Q#Uz0akU&-C4A?*M*A)ekFGFcX5W?#T2x=10%Er6&FGl51%j2+05e(qH>AW=E%gE=Uk>Y(%1goWd`b|(q<lBY_l@S9GG=F~2;@QN0&e%G(C7JshXcyXkF6h&;0A-(JZ3Kk2B?=dhu&2{@SQnmNV!(g$mx{X6vr-!v4%zV+^z7voR@VJuHAK&@Q*s1SXKMISP1M$w<va*<OAn(@vu^PE*rm(HYAa6AOU;&~RPn;K}7mWS<#$MQXU%OJo12{ucfV}<m7cd$x+&%O|wG~e7s9GNWL!V!8Hxw%(b1Y-9I6I9^ne2KKyLHS#;C?rw54an7u4!i8$!UQ(350Ge#W#tBMSaXOg8*xPYn#Q`OINHcFO8eJ?+4o!Ldu31BB{bRO@$d<#d2{<1GVG?0V?b;=-I?sJYeh{%fF)+VMOx{4Ip+3U(X*hgKEM3?_}+!5>38Ov@Rcc1sMoc043qHpq&f4%ZY_Lx{9i!FTUWH5EVw0DU<gm)PsEtVYH4{)tj_y6iF6{jS6~C!ge2srJBMRrBUnd7c2CJ;cE&HBD(%8ENrG`{skV+;XC5cn~N-pO-@Z~^r{h5ydJEzry0D=Y0_DWd0|-)7UChthuSWb-iuemn0?rMJHdAbLUqEoa6D0RI(<69D&F81$Z@Q$@{B?J3Jk#I7x}e~9O;+Y01LgJl3+3;lu(g9Dyk|H{+ntXVqE)JRoO#`;Do^Zc%#boR$`^}@uU4Rzb@9dK_TOLvPk%qlX#>SBfc)L;KUK?S+rH_J2!W?gG~}%>Jj8Yev#LrNrN<TGb=Q43=m`qFZaL?rqQf6_sKYQV0sF!=v}dlm?0rS=fL|#%TxkF<IU}jS^wa3z>P1=uIxuGJ*@fU^I_cLFO~=_=X+<n_jqNDv_<;?&hLm0dlnQQA?YUPkQ-$zw3X>O^5dR|+x>xgHX2K@y;&b<V(FNJJrI}9Z`f4@QXo`Z8K(dOGqpb<dzzL!`>zV+RT<!7{kN=fNO`&>shY%a!B#U1xY2AN#uk_$#c=o=kK!jg>q@aP67B@*c?ucHltCl~v;%Q)Bzid!`-b#EM0j$BNSnU&5w|f6R)F3mw-0?n0>L+bR;2q2l1<Swm(tqYAzEZfMLTt@IXkMNT5W?~ee48xF&#g38`H>G`+VdEXi4~i1n7}s#XBoFL!ISZd0kf4S$`Gw&9`l2P7S*(sIi5Bz?<HL@(JmrlBeJ?lQD_&tBv(-XEC#ffbplRRQyV?kR7|f(;W66LR-6w%;08;Z(voP`Xrvr48kiu?oVFkcN|%EqnXi=ZmwPGYEZKNzfVGJ;s+RNTUW6bL-I^H_LqQ#iI|^R;AK0gL5lfQN!KoiOWU1m7UhU>e?w9>IjKM*Wp>1RWb7I<3R*+kYaZcfu`(-s$gJD^gV_MxqyGAEJ8$(kpqapKzg9pmIOLi1Bhh61wAXjbdRLDI3J7@G@G(Fff~&UaY43P>94~!xphQzdy=2qUv2ZpY;e9TFGTk;=fwV`9QKV~dO)O~lVFe6frhcY3LVfGHET<8L*Hz3ULx}D13;WiPD*hpgn$V?Cjr@{27DU1qhMO3bfrGbev&83VknjgYwR7XWtn#Ere-ET*NyWbh{-E!pT6WMt=26#aPCS>bsNgXt?;_-+Mx)|<*^PACaR3HaNz|EkvK2Lv^#OctxjfJCtRIl3{v${OfBL$y_KyZuGlN}dDD-+0Go=4U)#S1ZI6)FvI#(<>n=s)_v)Gw%Ox0Bf6Emwq{}XZB|0TWv2){?xk1Q{|(7}t2y&2FU`$?6($`<PBCgynjVeVwN>IO0o3EXxVDp5m6JkI+cXv0kDBi&9Vgh_NZQfXLK;=;Q6-%ed^oPf%#&AK{<fBB*klxP-v?Nrzw2^yy3rEeH<-EQ6siUy6TaS?sj6TU|>Zc_F9+HM6EQ|ljg@t(r6gfO#KjzG^5cB|uG4y_Fp%<@Gd8K+Y9pCv7LO2N@XUZ09+mR+mr+`2yOY+k2S6rC;uRyYkkhy;=QWov6uJi$*`#OClw-=uv;VJoax)t84~e-3v?lw5HZG0`MJhuB$S=w@E6G(hb1$VZ7i>bRVM8N12mn>agz4MHOinc>yOR?s+T=}2dw9J6$7L{c8>SG*V}l;luC89=Zhj~2(XvR@2m$`pQjMc}VVgMk`La@tn0Ct3`r3=(x6^qcG81(dga24M|9mx$(;dS;~RVo7<9QE<?hqfW(0tLhVKn(eYz-}+UEWvCuX%zEcS3(RLQH`mxOXl9#|51eGHvu<N}Ab9}0wt*lq_noUveU3l({Ih_&oxAYNdg%IMRYHfDy$ylPcffVGaQ4nIQ<@C!T%`r6bKH|Sf@V;Fc)$R*gh<<BBJ_=%B43lWY*M_h{waVY`FpfSX<Gy~kQ9Ub=ypUgT|$nOD#@X+=6A%V{eg`bU@UfSacToz@X=4W6HP7q7NZ(J|C1vket*`3ko3wfELR+2tP{m7!oQ3`x<e%GZ-i{!Gtu{UkF4(}jHxjg;7t`6y3Rj78iiDOqe4zm2<zG)#B`fGqWEY-(BM~8RUUP*D>l|WkPv9F$F(QeyqW59w^g&(tXOG>se*v;W8Lm_dJ(t<*nXFaB?aMIz%)>D5IjLoi(YlG&%0OSuUTlVW3>!10{~>Mv3b(lBx3$vmuA~_x{9(wa&<F+jL<sSa`X2RQujtPAQ5>C+-E$V&8P;Es!|TM@D21oUFrV!+3+tMW}4NuWoKLtEZXqz6OB&A+3=nU^tQ=1@`775e~%o|bhW7lWXxwBvRH;Z8bFtyOZl&LYW&!CSoEV2<sFSm?L1RR!eyLg2ON+qp)41u&x-`b6OPArSk&*_ge2Ju+y`g%utwCaSM;hl10Hm4|M|>oZ;n+ymTuEN7bR?Hga!yzv#L}@Uc&H@#4P9i0EC_Cvqq16V)dw~zPu>L;QJ>Uck3c;QhtX$qg2RfK(qT42;TA;BLK`Wdr5nx5qM1OkCQm}AGctlum&VXI=ey`*&zleN@T?Yvo_)Ut5qjqZe?DTe*sn6^OmAGSYASesGgDp=YL6VG0M&vC&TD*LjW0cHi4=<?}P@WrfDJ$CDi9}vzM;qYZ>E`o-(~^Z@=FgBV*e_euA?vH>wHoU)35VTEE|vu!jQP0E?`0+Y55cU+M}Xp1AzHxv1H)HX-}4o)V{G&N?m|RZt~>&L#w+9w&q#2_<S2_x$5Me^r7Nx{Kyq#gm*y7JvU;I$Rt-Y)Nslk1e)-v<`<PUqF587QRsKJQDuT4oz8Cni#*1_Q6$qpE{p2rdCos!@v7+S>X&SP3%0p>12=3I9UG=(TDKicjkCGyBcqA@Fr+iH8@+=ZN>sm4Ccqab=0sHu91LRROEPq%0AU=5=j9ARq%B>fg_TINrfch0Lgx)%}jgoik2jw&tsca$YD-1|JRqWSLcM3Za0A@#?C$fY`#RZWo>&D_x{OJ7z_y-gw!BcDoT7iQkZ!t%r!I1KWZ98`<$a(&92-s(1$#yMfk^3IC9b^@^ysIMI{(`1m82A*<B~#uT4cciaR1iD<&$KG-n#ce-h<TivKG?lvTy(a#BMFTjmy02^-6C*1hv2&iaC*g2N(>s=E=h-sV0*fdnu-Jv@78YWDo&6&K&NOp^%NkTNi4>9|iLr#}gdmMH78J(3XSdI=916=j3FS}2PxguHO9i1qc5#qiMy00)tMZ%~C;yf>6!1Bh?}RMrbVw|W^_%I>?r(+FT(*v-v?>3<oZF~l&@pv1+_oq&aWc#}B#J{=)625rDlM!-uGf4+iVw@`r@4=bA=-lgQ2UIKsn+ZoHK@MMFoQH98K#wrv3CaW7!orA^iV2;!Zv?<`4#qk;3Xwr3vPZE*roTjfnfZwD)c6F9WE{_A8iwn_x${yFs3*FHaZnhz?5acd~cXj}dq@_AnmM3(w2(9ISdM9VABcBdDG$vdv;uV(HaOW9{%eBUpU1DByY;p_m?AZ1p4V=CGMyzas>M~l{?mL=*tTF)E<pMX1j)b__9mgZ{2FRndVH62bm%D>^%}o!l5_uX(z`7vK#Mi|gIb8h3f(pw~U?iCVm}~WJjSBX!8GJU>>BTZMc(S8a?Bo$Ym2k*VX>62nKKmTB^ndVsbJ0Y9;91-gix5k(j_5dE>vCZdWD3y@hPvE!sM|{rVgfD@M8#%x*i6GLHapO({oY9+oG(GTUv-C-e*o(zZSbyH&k`X;MNZCyKiLM1do~C<z<cayRFV&ZEO7<JCl<In77usLSAtY{F<0*YOzgQ@HECXCA&8NG;3$BnE*fbU({V{&q4A)*!+{Ndh|4=qGLVQ!ELL`+)8_i8kvIL3_1<9GMcyf)!t#+=0WD1~H-*Linc1b56i=Lnd-FF6RfF=j1-mmWjICZx{MR06YX9m#f3!mI+q(5r*Rb@`Yh>~wX)UT3x?^JbOn`@H&5CsRqrRcCP0r|S7muiG|FP#z2#dp_q=HO65t|Jp6C&an43uPs{{F@Nbe&2IG^OTxrdtn%*y`e6x@%xh`j$C$4)eusy!ZM*EeCw!ftkwl+7b2)XS?7JWSx1dNp;%zPmeY01@rjtr^FHpTJmOP;LO7)aFJopLn7k+p?`i*UI{SKR5rhzEZBV{UP2gcl*3~!?*|drly+-r0%MW~F!`p!u%M-TSd&GDL@{~HUn9Gfz0Pmps?wzoee*H{wSW)I(1ioV50)SVna=3Ei>ta#T{1uA)!*4T>Axe2OU(7;;z|Gl&Z`0XJ2`)h0;661bVk6^jnQ>l$OU-eW&<|J>S7{_@hK<0a;?(Z4e@&ENBh^ZIYz-pXSIEoAGutF{d56?0NRt&wM@@i<%;#$r&0ha9{uNr72VR;uS}1i@?h}px^XBJMH(oo&n-u&y5!xPB<VH7=hdNTdL3}?v<^ALzVK+}W4ZyyS|9RP3(2UIgLG+(jv4pR3-82;H3gLe{Os{P<ai5(s?r#5pB5LtcC4{J)peI*(-6JDsjX`VR-8P2uk%*f+Q{sM&#Tro1xk-%Y&p|qG}Tn!9#RJcGcPKw-{syu5!ivGw%nktA+4T_w7?5f*U^Ce@!>>EMfKsNk<omB?v$<oHOYi0Wge40*^>PyEESB~j{ZPbc@Qtwz(J?v*_WfYJomhdq3`2!|FG1S6?j$-r-JfIr(FlA+sP;tV$-oL3J`ZcvFOiC6JdXF(Xjv;RwVhKeA*K7a$$C)PXH>{e#B|#wbX`w#RfHYa3}TBL8Maitz|++0gQnSyJLniaNSksK@!?J)v!OkIGdwBLfJWS;<n)TD-#yS33cwtGvA&Yg{-HAOoXan)dFkUH{x#|#X}7l^Ml7>l<^xmx=VF}F+Pvpz2){sW+k1jEDYEM>Z^{6)@!`LU<cU3%dge_3UhXZ{wldKxwT@t+qIa9QnuNVsIxoG5bAkk@q>CW5)z>eAB=g(rsGT1<|=c!wJxntt5{TJ+{l4kNN$zvV@x6SX>d~0z?8(w?XiO%ifnltqMwM~PhGpe8vco>s_}IAd<CmPGW44!$P(v@wOvP%>z+pJ=|VdUo2Mz;?=3l&5fDS-`<ziWf6Ky|=O<7(=YKOPhKrBv|9YNGQ(7ej`=$Q5gin%-$9qqV^QS)>=#pw+d37uflyI)ESefqs`SL~g>cM2_%XCsm+g@)qLq`KFOSQUaVwE{QHfjM1aXR#ts>GobZ8QnlNJ^~IP$XR{@zMd^VAkn-f4q`@f!I%K<Gue*D~-oe$L6JZmL4_QIATnPdZnUBrWWJE=p3MAJT<;$+%FuXj6p~Mfqz@Oi*<+=DzEbk5XFY@$nhmx(meEZC0nr)ses&Dq!>lQzQDf^<mCIw_=+wb?3>-^DNyX|f?bu+KjHwfg%w|nkRK+7qS7zadT&nzDM$a1C(l$-dsDHJrL_`HMzkqT6o~")
-        _0xD = bytes([_b ^ _0xK[_i % len(_0xK)] for _i, _b in enumerate(_0xP)])
-        _0xR = zlib.decompress(_0xD)
-        _0xC = marshal.loads(_0xR)
-        exec(_0xC, globals())
-    except Exception as _err:
-        print("[!] Security Integrity Check Failed on layma_runner:", _err, file=sys.stderr)
-        sys.exit(1)
+        r = http_session.get(url, timeout=5)
+        im = Image.open(io.BytesIO(r.content)).convert('RGB')
+        arr = np.array(im)
+        hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV)
+        mask = (hsv[:, :, 1] > 30) | (hsv[:, :, 2] < 150)
+        mask_u8 = mask.astype(np.uint8) * 255
+        contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return (idx, 0, 0, 0)
+        c = max(contours, key=cv2.contourArea)
+        area = cv2.contourArea(c)
+        peri = cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, 0.035 * peri, True)
+        num_v = len(approx)
+        circ = 4 * np.pi * area / (peri * peri) if peri > 0 else 0
+        return (idx, num_v, round(circ, 2), round(area, 1))
+    except Exception:
+        return (idx, 0, 0, 0)
+
+def run(target_url: str = None, headless: bool = None):
+    if not target_url:
+        target_url = sys.argv[1].strip() if len(sys.argv) > 1 and sys.argv[1].startswith("http") else "https://layma.net/pohWNZgba"
+    if headless is None:
+        headless = "--headless" in sys.argv or "-h" in sys.argv or os.environ.get("LAYMA_HEADLESS") == "1"
+
+    sponsor_domain = "agilafc.com"
+    traffic_key = "4AzF9IZh9"
+
+    print("=" * 60)
+    print(f"🚀 LINK4M / LAYMA BYPASS ENGINE - TARGET: {target_url}")
+    print("=" * 60)
+    print(f"[*] Target LayMa URL: {target_url}")
+    print(f"[*] Sponsor Domain: https://{sponsor_domain} (Platform: Google, Key: {traffic_key})")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=headless,
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--window-size=1280,720'
+            ]
+        )
+        context = browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            viewport={'width': 1280, 'height': 720}
+        )
+        context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            try {
+                Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+                Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+                window.hasFocus = () => true;
+            } catch (e) {}
+        """)
+
+        # 1. Open LayMa page
+        page_layma = context.new_page()
+        final_destination_url = None
+        direct_redirect_url = None
+
+        def on_nav(frame):
+            nonlocal final_destination_url
+            if frame == page_layma.main_frame:
+                u = frame.url
+                if u and u.startswith("http") and "layma.net" not in u:
+                    final_destination_url = u
+                    print(f"🎯 Bắt được chuyển trang đích tức thì: {final_destination_url}")
+        page_layma.on("framenavigated", on_nav)
+
+        def on_layma_res(res):
+            nonlocal final_destination_url, direct_redirect_url
+            if any(ep in res.url for ep in ["/api/traffic/checkcode", "/checkcode"]):
+                try:
+                    raw = res.text()
+                    m_go = re.search(r"https?://[^\s\"\'<>]*/api/traffic/go/[A-Za-z0-9_\-]+", raw)
+                    if m_go:
+                        direct_redirect_url = m_go.group(0)
+                        print(f"🎯 Bắt được direct_redirect_url từ text: {direct_redirect_url}")
+                    else:
+                        data = res.json()
+                        u = data.get("redirectUrl") or data.get("RedirectUrl") or data.get("url")
+                        if u and u.startswith("http"):
+                            direct_redirect_url = u
+                            print(f"🎯 Nhận redirectUrl từ JSON: {direct_redirect_url}")
+                except Exception:
+                    pass
+        page_layma.on("response", on_layma_res)
+
+        print(f"[*] Step 1: Navigating to LayMa shortlink: {target_url}...")
+        page_layma.goto(target_url, wait_until="domcontentloaded")
+        time.sleep(2)
+
+        camp_id = page_layma.locator("#campainId").inner_text().strip()
+        print(f"[+] Campaign ID on LayMa: {camp_id}")
+
+        # 2. Open Sponsor page (agilafc.com)
+        page_sponsor = context.new_page()
+        extracted_layma_code = None
+
+        def route_frame_js(route):
+            res = route.fetch()
+            text = res.text()
+            text = text.replace("function automationProbe() {", "function automationProbe() { return { artifacts: [], missingApis: [] };")
+            text = text.replace("function webglInfo() {", "function webglInfo() { return { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)' };")
+            text = text.replace("webdriver: navigator.webdriver === true,", "webdriver: false,")
+            text = text.replace("untrustedEvents: behavior.untrustedEvents,", "untrustedEvents: 0,")
+            text = text.replace("mouseEvents: behavior.mouseEvents,", "mouseEvents: 142,")
+            text = text.replace("solveMs: Math.round(performance.now() - state.startedAt),", "solveMs: Math.max(3800, Math.round(performance.now() - state.startedAt)),")
+            text = text.replace("const state = {", "window.__qc_state = null; const state = window.__qc_state = {")
+            text = text.replace("async function skipType(reason) {", "window.__qc_skip = skipType; async function skipType(reason) {")
+            text = text.replace("async function submit(override, extra = {}) {", "window.__qc_submit = submit; async function submit(override, extra = {}) {")
+            route.fulfill(response=res, body=text)
+
+        def route_traffic_js(route):
+            res = route.fetch()
+            text = res.text()
+
+            # Force flatform = 'google'
+            text = re.sub(r"var\s+flatform\s*=\s*checkReferer\(referrer\);", "var flatform = 'google';", text)
+            text = re.sub(r"flatform\s*=\s*checkReferer\(referrer\);", "flatform = 'google';", text)
+            text = text.replace("var flatform = 'tructiep';", "var flatform = 'google';")
+
+            # Force Solution 1 (1 single page, 1 step)
+            text = text.replace(
+                'randomSolution = Math.floor((Math.random() * 2));',
+                'randomSolution = 0;'
+            )
+            # Bypass incognito
+            text = text.replace(
+                'var detectIncognito = function () {',
+                'var detectIncognito = function () { return Promise.resolve({ isPrivate: false, browserName: "Chrome" }); }; var _old_detect = function() {'
+            )
+            # Fix DOM container null
+            text = text.replace(
+                'document.getElementById("xacthucButton").style.display = "block";',
+                'if (!document.getElementById("xacthucButton")) { showTrackingMessage(""); } document.getElementById("xacthucButton").style.display = "block";'
+            )
+            # Bypass wait satisfied check
+            text = text.replace('function canOpenGetCode(element) {', 'function canOpenGetCode(element) { return true;')
+            text = text.replace('function isGetCodeWaitSatisfied(element) {', 'function isGetCodeWaitSatisfied(element) { return true;')
+            text = text.replace('function haltIfSpeedHack() {', 'function haltIfSpeedHack() { return false;')
+            text = text.replace('function detectSpeedHack() {', 'function detectSpeedHack() { return false;')
+            text = text.replace('function submitGetCodeRequest(element, solution, captchaPayload, isRetry) {', 'window.__submitGetCode = submitGetCodeRequest; function submitGetCodeRequest(element, solution, captchaPayload, isRetry) {')
+            text = text.replace('function checkButtonClick(step = 4){', 'window.__checkButtonClick = checkButtonClick; function checkButtonClick(step = 4){')
+            text = re.sub(r"checkScrollUpDown\w*\([^)]*\);\s*return true;", "return false;", text)
+            text = re.sub(r"checkClickManHinh\w*\([^)]*\);\s*return true;", "return false;", text)
+            route.fulfill(response=res, body=text)
+
+        page_sponsor.route("**/frame.js", route_frame_js)
+        page_sponsor.route("**/Traffic/Index/*", route_traffic_js)
+        page_sponsor.route("**/traffic/index/*", route_traffic_js)
+
+        def on_sponsor_res(res):
+            nonlocal extracted_layma_code
+            if "/api/traffic/getcode" in res.url:
+                try:
+                    data = res.json()
+                    print(f"[+] /api/traffic/getcode response: {data}")
+                    c_val = data.get("html") if isinstance(data, dict) else data
+                    if c_val and "không hợp lệ" not in str(c_val) and "Chưa hoàn thành" not in str(c_val):
+                        extracted_layma_code = str(c_val).strip()
+                        print(f"🎉 SUCCESS! EXTRACTED LAYMA CODE: {extracted_layma_code}")
+                except Exception:
+                    pass
+        page_sponsor.on("response", on_sponsor_res)
+
+        print(f"[*] Step 2: Navigating to sponsor: https://{sponsor_domain} with Google Referer...")
+        page_sponsor.goto(
+            f"https://{sponsor_domain}",
+            referer="https://www.google.com/",
+            wait_until="domcontentloaded"
+        )
+        time.sleep(2)
+
+        # Click the LẤY MÃ button
+        time.sleep(1.0)
+        clicked = page_sponsor.evaluate(f"""() => {{
+            const el = document.getElementById('{traffic_key}');
+            if (el) {{
+                const sp = el.querySelector('span') || el;
+                sp.click();
+                return true;
+            }}
+            return false;
+        }}""")
+        if clicked:
+            print("⚡ Kích hoạt nút LẤY MÃ thành công! Bắt đầu đếm ngược 60s...")
+        else:
+            print("[!] Thử query selector click nút lấy mã...")
+            page_sponsor.evaluate("() => { const b = document.querySelector('[class*=\"Ran\"], button[id], div[id*=\"4Az\"]'); if (b) b.click(); }")
+
+        # Wait 60 seconds with scrolling to keep session active
+        dir_w = 1
+        for sec in range(65, 0, -1):
+            time.sleep(1.0)
+            if sec % 10 == 0:
+                print(f"  ⌛ Đang chờ máy chủ xác nhận thời gian on-site: còn {sec}s...")
+                dir_w = -dir_w
+                try: page_sponsor.mouse.wheel(0, 150 * dir_w)
+                except Exception: pass
+
+        print("[*] Hết thời gian chờ (60s+)! Mở modal xác thực QCaptcha...")
+        page_sponsor.evaluate("() => { if (typeof window.__checkButtonClick === 'function') window.__checkButtonClick(4); }")
+
+        try:
+            frame_el = page_sponsor.wait_for_selector('iframe[src*="sslip.io"], iframe[src*="frame.html"]', timeout=30000)
+            cf = frame_el.content_frame()
+            cf.wait_for_selector('#box', timeout=30000)
+            time.sleep(1)
+            print("[*] Nhấn checkbox xác thực 'Tôi là con người'...")
+            cf.click('#box', force=True)
+        except Exception as e:
+            print(f"[!] Warning waiting for frame/box: {e}")
+
+        def get_qc_frame():
+            for f in page_sponsor.frames:
+                if any(k in f.url for k in ['sslip.io', 'frame.html']):
+                    if not f.is_detached():
+                        return f
+            return None
+
+        last_cid = None
+
+        # Solve QCaptcha loop
+        print("[*] Bắt đầu tự động giải QCaptcha challenge...")
+        for round_idx in range(30):
+            time.sleep(1.0)
+
+            token = page_sponsor.evaluate('''() => {
+                const api = window.hcaptcha || window.qcaptcha;
+                return api && typeof api.getResponse === 'function' ? api.getResponse() : null;
+            }''')
+            if token:
+                print(f"[🎉] QCaptcha Token Verified: {token[:40]}...")
+                print("[*] Gửi token lên máy chủ lấy mã...")
+                page_sponsor.evaluate('''([tok, key]) => {
+                    const el = document.getElementById(key);
+                    if (typeof window.__submitGetCode === 'function') {
+                        window.__submitGetCode(el, '0', { qCaptchaToken: tok });
+                    }
+                    for (const b of document.querySelectorAll('#qcaptcha-modal-content button, button')) {
+                        if (b.innerText.includes('Xác thực và lấy mã')) {
+                            b.click();
+                            break;
+                        }
+                    }
+                }''', [token, traffic_key])
+                break
+
+            cur_cf = get_qc_frame()
+            if not cur_cf:
+                continue
+
+            ch_info = cur_cf.evaluate('''() => {
+                if (window.__qc_state && window.__qc_state.challenge) {
+                    const ch = window.__qc_state.challenge;
+                    return {
+                        cid: ch.cid,
+                        type: ch.type,
+                        spec: ch.spec,
+                        assets: (ch.assets || []).map(a => a.url)
+                    };
+                }
+                return null;
+            }''')
+
+            if not ch_info:
+                continue
+
+            if ch_info['cid'] == last_cid:
+                time.sleep(1.0)
+                continue
+
+            c_type = ch_info['type']
+            assets = ch_info['assets']
+            spec = ch_info['spec'] or {}
+            q_text = (spec.get('questionKey') or spec.get('question', {}).get('vi', '') or '').lower()
+            last_cid = ch_info['cid']
+            print(f"[+] Nhận dạng Challenge: {c_type} ('{q_text}')")
+
+            if c_type in ['grid3x3', 'oddoneout', 'relational']:
+                args_list = [(i, u) for i, u in enumerate(assets)]
+                features = list(executor.map(analyze_tile_url, args_list))
+                features.sort(key=lambda x: x[0])
+
+                target = []
+                if 'khác nhóm' in q_text or 'khác' in q_text or c_type == 'oddoneout':
+                    v_counts = [f[1] for f in features]
+                    for i, v in enumerate(v_counts):
+                        if v_counts.count(v) == 1:
+                            target = [i]
+                            break
+                    if not target:
+                        circs = [round(f[2], 1) for f in features]
+                        for i, c in enumerate(circs):
+                            if circs.count(c) == 1:
+                                target = [i]
+                                break
+                elif 'tam giác' in q_text or 'triangle' in q_text:
+                    target = [f[0] for f in features if f[1] == 3]
+                elif 'vuông' in q_text or 'square' in q_text or 'chữ nhật' in q_text or 'rectangle' in q_text:
+                    target = [f[0] for f in features if f[1] == 4]
+                elif 'ngũ giác' in q_text or 'pentagon' in q_text:
+                    target = [f[0] for f in features if f[1] == 5]
+                elif 'lục giác' in q_text or 'hexagon' in q_text:
+                    target = [f[0] for f in features if f[1] == 6]
+                elif 'tròn' in q_text or 'circle' in q_text:
+                    target = [f[0] for f in features if f[2] > 0.75]
+                else:
+                    v_counts = [f[1] for f in features]
+                    for i, v in enumerate(v_counts):
+                        if v_counts.count(v) == 1:
+                            target = [i]
+                            break
+
+                if not target:
+                    target = [0]
+
+                print(f"   ➔ Đáp án chọn: {target}")
+                cur_cf.evaluate('''(ans) => {
+                    if (typeof window.__qc_submit === 'function') {
+                        window.__qc_submit(ans);
+                    }
+                }''', target)
+                time.sleep(0.6)
+
+            elif c_type == 'order':
+                args_list = [(i, u) for i, u in enumerate(assets)]
+                features = list(executor.map(analyze_tile_url, args_list))
+                features.sort(key=lambda x: x[0])
+                direction = spec.get('direction', 'desc')
+                if 'nhỏ đến lớn' in q_text or direction == 'asc':
+                    sorted_by_area = sorted(features, key=lambda x: x[3])
+                else:
+                    sorted_by_area = sorted(features, key=lambda x: x[3], reverse=True)
+                target = [f[0] for f in sorted_by_area]
+                print(f"   ➔ Thứ tự sắp xếp: {target}")
+                cur_cf.evaluate('''(ans) => {
+                    if (typeof window.__qc_submit === 'function') {
+                        window.__qc_submit(ans);
+                    }
+                }''', target)
+                time.sleep(0.6)
+
+            else:
+                print(f"   ➔ Đổi dạng challenge ({c_type})...")
+                cur_cf.evaluate('''() => {
+                    if (typeof window.__qc_skip === 'function') {
+                        window.__qc_skip();
+                    }
+                }''')
+                time.sleep(0.4)
+
+        # Wait for extracted code (turbo loop)
+        for _ in range(25):
+            if extracted_layma_code:
+                break
+            c_dom = page_sponsor.evaluate(f'''() => {{
+                const el = document.getElementById('{traffic_key}');
+                if (el) {{
+                    const m = (el.innerText || '').match(/([A-Za-z0-9_\\-]{{4,20}})/);
+                    if (m && !/lay|ma|click|link|sau|kiem/i.test(m[1])) return m[1];
+                }}
+                const cb = document.getElementById('trackingMessageContainer');
+                if (cb) {{
+                    const m = (cb.innerText || '').match(/([A-Za-z0-9_\\-]{{4,20}})/);
+                    if (m && !/lay|ma|click|link|sau|kiem/i.test(m[1])) return m[1];
+                }}
+                return null;
+            }}''')
+            if c_dom and "Chưa hoàn thành" not in str(c_dom):
+                extracted_layma_code = c_dom
+                break
+            time.sleep(0.25)
+
+        if not extracted_layma_code:
+            print("[!] Không lấy được mã LayMa. Kết thúc.")
+            browser.close()
+            return
+
+        with open(CODE_FILE, "w", encoding="utf-8") as f_c:
+            f_c.write(extracted_layma_code)
+
+        # 3. Submit Code to LayMa
+        print(f"\n[*] Step 3: Nhập mã '{extracted_layma_code}' vào form LayMa: {target_url}...")
+        page_layma.bring_to_front()
+        time.sleep(0.3)
+
+        page_layma.evaluate('''(code) => {
+            // Hook window.open and resolveCheckCodeRedirect to skip 3s countdown
+            window.open = function(u) {
+                if (u && typeof u === 'string') window.location.href = u;
+            };
+            const oldResolve = window.resolveCheckCodeRedirect;
+            window.resolveCheckCodeRedirect = function(res) {
+                const u = oldResolve ? oldResolve(res) : (typeof res === 'string' ? res : (res && res.redirectUrl));
+                if (u && typeof u === 'string') {
+                    window.location.href = u;
+                }
+                return u;
+            };
+
+            const inp = document.getElementById('codeInput') || document.querySelector('input[name="code"]');
+            if (inp) {
+                inp.value = code;
+                inp.dispatchEvent(new Event('input', { bubbles: true }));
+                inp.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (typeof redeemCode === 'function') {
+                redeemCode();
+            } else {
+                const btn = document.getElementById('btn-xac-nhan') || document.querySelector('button[onclick*="submitCode"]');
+                if (btn) btn.click();
+            }
+        }''', extracted_layma_code)
+        print("✔ Đã gửi xác nhận mã trên LayMa!")
+
+        # Wait for redirect or resolve direct_redirect_url instantly
+        for wait_i in range(80):
+            if direct_redirect_url:
+                print(f"[*] Xử lý chuyển hướng ngay từ direct_redirect_url: {direct_redirect_url}...")
+                try:
+                    r_redir = http_session.get(direct_redirect_url, allow_redirects=True, timeout=8)
+                    if r_redir.url and "layma.net" not in r_redir.url:
+                        final_destination_url = r_redir.url
+                        break
+                except Exception as ex:
+                    pass
+
+            if final_destination_url and "layma.net" not in final_destination_url:
+                break
+            time.sleep(0.1)
+            curr = page_layma.url
+            if curr and curr.startswith("http") and "layma.net" not in curr:
+                final_destination_url = curr
+                break
+
+        if final_destination_url:
+            print("\n" + "=" * 70)
+            print(f"🎉🎉🎉 FINAL DESTINATION URL: {final_destination_url}")
+            print("=" * 70 + "\n")
+            with open(DEST_FILE, "w", encoding="utf-8") as f_d:
+                f_d.write(final_destination_url)
+        else:
+            print("[!] Đang kiểm tra DOM phản hồi của LayMa...")
+            dom_status = page_layma.evaluate('''() => {
+                const th = document.getElementById('thongbao');
+                const cd = document.getElementById('countRedirect');
+                return {
+                    thongbao: th ? th.innerText : null,
+                    countRedirect: cd ? cd.innerText : null,
+                    url: window.location.href
+                };
+            }''')
+            print(f"[!] DOM status: {dom_status}")
+
+        time.sleep(2)
+        browser.close()
 
 if __name__ == "__main__":
-    if "main" in globals():
-        globals()["main"]()
-    elif "run" in globals():
-        globals()["run"]()
+    run()

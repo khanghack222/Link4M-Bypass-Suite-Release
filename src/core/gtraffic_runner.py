@@ -1,41 +1,616 @@
-# -*- coding: utf-8 -*-
-# Link4M Security Engine - Protected Native Module: gtraffic_runner
-# Protected by polymorphic bytecode encryption & anti-tamper integrity checks.
-__author__ = "khanghack222"
-__version__ = "4.2.0"
-__obfuscated__ = True
-__integrity_hash__ = "6160f0754fb9769424c7976f850b5ce2c814e9c95c7a4f2f04bc44b07be53adc"
+import sys
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+import os
+import time
+import json
+import re
+import urllib.request
+from playwright.sync_api import sync_playwright
 
-import sys, os, zlib, marshal, base64
+from config import CHROME_PATH, ROOT_DIR, DEST_FILE, CODE_FILE, log, copy_to_clipboard
+from sponsor import get_ocr, extract_domain_candidates, probe_domain_live
 
-# Try loading high-speed native C machine code (.pyd) if available
-_pyd_loaded = False
-try:
-    _dir = os.path.dirname(os.path.abspath(__file__))
-    if _dir not in sys.path:
-        sys.path.insert(0, _dir)
-    import gtraffic_runner as _pyd_mod
-    for _attr in dir(_pyd_mod):
-        if not _attr.startswith("__"):
-            globals()[_attr] = getattr(_pyd_mod, _attr)
-    _pyd_loaded = True
-except (ImportError, AttributeError):
-    _pyd_loaded = False
+def is_valid_destination(u: str, sponsor_domain: str = None) -> bool:
+    if not u or not isinstance(u, str) or not u.startswith("http"):
+        return False
+    u_low = u.lower()
+    ignored = [
+        "gtraffic.io", "client.gtraffic.io", "dr-client.gtraffic.io", "direct.gtraffic.io",
+        "cdn.gtraffic.io", "about:blank", "google.com/recaptcha", "gstatic.com/recaptcha",
+        "doubleclick.net", "googlesyndication"
+    ]
+    if any(d in u_low for d in ignored):
+        return False
+    if sponsor_domain:
+        try:
+            s_host = urllib.parse.urlparse(sponsor_domain).netloc.lower()
+            u_host = urllib.parse.urlparse(u).netloc.lower()
+            if s_host and (s_host in u_host or u_host in s_host):
+                return False
+        except Exception:
+            pass
+    return True
 
-if not _pyd_loaded:
+CAMPAIGN_RULES = [
+    (['bong da', 'bóng đá', 'ca cuoc', 'cá cược', 'ca do', 'cá độ', '686'], 'https://bongda686.com'),
+    (['ki tu', 'kí tự', '360', 'dac biet', 'đặc biệt'], 'https://kitu360.com'),
+    (['phan van', 'phan văn', 'santos'], 'https://phanvansantos.com'),
+    (['sun', 'sixtyseven'], 'https://sunwin.sixtyseven.co.in'),
+    (['fun', 'greenco'], 'https://greenco.com.co'),
+    (['hitclub', 'hit club', 'hit'], 'https://hitclub.com'),
+    (['ok365', 'ok 365'], 'https://ok365.com')
+]
+
+def resolve_sponsor_domain(keyword_text: str, img_url: str) -> str:
+    import unicodedata
+
+    def generate_slug_variants(text: str) -> list:
+        nfkd = unicodedata.normalize('NFKD', text or '')
+        ascii_t = ''.join([c for c in nfkd if not unicodedata.combining(c)]).replace('đ', 'd').replace('Đ', 'D').lower()
+        words = re.findall(r'[a-zA-Z0-9]+', ascii_t)
+        variants = []
+        if words:
+            variants.append(''.join(words))
+            if len(words) >= 3:
+                variants.append(words[0] + words[1] + words[-1])
+                variants.append(''.join(words[:-1]))
+                variants.append(words[0] + words[-1])
+        return list(dict.fromkeys(variants))
+
+    def is_actual_sponsor(url: str) -> bool:
+        if not url: return False
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                html = resp.read().decode("utf-8", errors="ignore")
+                return any(w in html for w in [
+                    'trade-btn', 'traffic-button', 'pages.dev/traffic', 'pages.dev/bt',
+                    'pages.dev/andanh', 'ontops.link', 'client.gtraffic.io', 'captchano', 'verifyclf'
+                ])
+        except Exception:
+            return False
+
+    kw_clean = (keyword_text or "").lower().strip()
+    # 1. If keyword contains or is directly a domain (e.g. bebepourlavie.info, thoitiethomnay.org)
+    d_matches = re.findall(r'[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?', kw_clean)
+    for dm in d_matches:
+        if not dm.endswith('.png') and not dm.endswith('.jpg') and not dm.endswith('.js') and not dm.endswith('.svg'):
+            live_res = probe_domain_live(dm)
+            live_u = live_res[0] if isinstance(live_res, tuple) else live_res
+            if live_u and is_actual_sponsor(live_u):
+                log(f"[+] Found verified live sponsor from domain in keyword: {live_u}")
+                return live_u
+            elif live_u:
+                log(f"[+] Found live sponsor candidate from keyword: {live_u}")
+                return live_u
+
+    # 2. Match known campaigns / rule triggers
+    if kw_clean:
+        for triggers, domain in CAMPAIGN_RULES:
+            if any(t in kw_clean for t in triggers):
+                log(f"[+] Match known campaign triggers {triggers} from '{kw_clean}' -> {domain}")
+                return domain
+
+    # 3. Slug variants from keyword and probe common TLDs
+    slugs = generate_slug_variants(kw_clean)
+    for slug in slugs:
+        if len(slug) >= 3 and not slug.isdigit():
+            log(f"[*] Checking slug candidate '{slug}' for live domains...")
+            for tld in ['com', 'vn', 'net', 'org', 'com.vn', 'info', 'xyz', 'top', 'site', 'vip', 'io']:
+                test_c = f"{slug}.{tld}"
+                live_res = probe_domain_live(test_c)
+                live_u = live_res[0] if isinstance(live_res, tuple) else live_res
+                if live_u and is_actual_sponsor(live_u):
+                    log(f"[+] Found verified live sponsor from keyword slug: {live_u}")
+                    return live_u
+
+    if not img_url:
+        return None
+
+    log(f"[*] Downloading campaign image for OCR: {img_url}")
+    temp_img = os.path.join(ROOT_DIR, "data", "temp", "gtraffic_camp.png")
+    os.makedirs(os.path.dirname(temp_img), exist_ok=True)
     try:
-        _0xK = base64.b85decode("*G0WjSVY$eL`b0&H);lHSVkL98k7>cQ-_B!&8w(y")
-        _0xP = base64.b85decode("ub*%(Gbqg7(YUP()%qIO925z<s?#0e@#;?J4jqIjWv~fM&Y+(|ScA|Ey;+p6z6AwAKM%JEeX*E()J5)I%N=l(b)P!QDHU~0+X#z=c3dw8i!#p@V0~fA31_cvp7y(Br%<~KT(wk*48DcU@Sepfk=w3>AYe(Twq%u<3pR4=ugK`kmbO#En3Z4YJDzsK-2Bcp-sFo%+;r$BfAyg)?9PGKm$bQx$`<ud#ymuFw8Fd~A`127L%=-*2|XhqjmgA$k+M`3^wLKVe~ENMig$K;XX%Zp3TCOKZ(!X|??Suka;+HJsCBmHgGH4-T~sSn*R=&0ZC>P#bHj`7@?H3=$+&`jBnNmRYpA(m>Oi>KN6TU0`)h#7+$@I1V9=nI>mp`fuQ<Gk$^;+?u%xtJloxymTYbM1gS=XNqDaC8xdFQM5CNSGMS<71r>fK!!H%KX#(Kmbor~UTc7RgU{3NJLI*>Z)DKnKUy)tXf&FgF3(6Y9JA=%VTv(a9drKylxV6~3Lx2y$H>0st3y%BP(4)%4%d!M4n$|-5th#jsA#gh7klmgR)%lfAl$mRcj1#DqKF;8+UCHPPWLG;bU)R_PP&amkNLL%SF@{ZxsOf)qLvw5GjDM-lZ#&(@~H(&N9)c_?&`p+UvSf5~R4Y}~427|(0x4NtPx%ewWx(K=xQ)QI`_#o)-(NXhIR5xT3M1ei=f@O|6iMx_1>_TiUOfwoc8H<vO>k2}F#%@~|+Zye+{%B;R9i-U!0pw*~5-xM7y==nuBHnC10GhO)m=MYuo-G-VtPeFu<KH=aWpy6oh6r}YO{tYV|2L1LFK3~Fu45`X7X&e_1*x+v^Pj6I%zt&$TuK8-`$J8(hxJoSCyX%s!;?!QCdaOi+eQVl9bye)X3I}b)cI=EkNP<+7qfBaf3g<fya%tltg?j1ZX+nrk0&C(!0uZPKir)S&l<7)3e1CO{O;Lu<U;u<5@$>_Tu3&}c?Vu;c>hcWzf^=)q5`4bxi+F2OnND9*6LPPW~=TM8k_WlizxyxqM|-c#h?j=D_=}FilmbWOu6f$cW7`i*;x1a*B|4=bZgwt(@kvOYjaY5h09%e#^&PMYn2;PPTt9x-8zV#ly(*~8{jV)abYld{(c<-I=mcu>@WI~u`x{&DUG>!FE4d7?9U^f)7Db#>M$u?b`om>-JukwRRG&gS+h-IcOc3V+`8o~h(%ijv2dTVeeH^v2eiMu@*?O;CxTv{^E?{g_sm=6SRQA7au^@A{6XO$%e^712$R3Sm=Y6Xt(&#Ie(qRL+vFe`TBkz;`N#8`jj*j!_2=xTviTO<xwJtezh!@<vKco9%N#~waP4{EF5SJp8&<FtFSc+DmM^Yq9wj=t*t&p74_zuEJP{_#92h#SC7KpbdIQhl9v2xCHIm^EZk8DE0f}dk6d{Vqg%!Z6BQl!=@5ykvpqW0sm)^__bLLJlE0D7U!iqhqie$nXa>piXTF~WhPLdm->fmm5M9S=^8L!AK>F;DNHad;EBp7cgMi74P$?|D~fkcw*BmAq4zmFGIu4Tv5uAsD9&SGZJbeo&aw%G`gbB*oDm{?rdp9-SuCi0L2Ciz+YBIE<2OAsb^KBcW{QhX|6r?P}j$sTn8+_*YsT8K*IhbNcYQXV)XGH}7FoK!asF7nGpipYb;Y%ZdgZCcjMGU)feYDgL;hTi5cL3zr$22%n1VJT*c0I)!9YWpPTa_2|wH2lUzM4oploF7;NrS89UV0)~F^BFm4xM@WY)F8g_2s%7SthQ-jt{RabAkKQXn97XO5XQ&rKC;s4i|)grIR5=7nRlqc&!liUBV6Y6I_}b6U72Mx=hrniA@2vnHr#z4jPkznWV{=V*S;Qc=t5}97Z<a`dhP!o0oxsdx0_7^yCna^zO{dsuz?6@$|!-p$e0C0p9RY%bxd(@)blj{!ru>XkdbiSjA2DWw^Avm7F@C!;;PP0klt%&YJh?fH@d@m?{HOE;ga7;OAs>YfcD%*ns*B>rKl4RacBqKJBIf5Xsf8(v*_n}?<nu-!|{m%=1)-=$g7_AVtXjWo>Iz!niC|CGDGc5M>h!<UpdKQU&_LI<u14dMNYWjU?0Gw4EetydIukiaT*@#pB@0A#fkt6-rhApnD88?c*dJMZcsxN<cH+r2#KyPg!gscm`7K^6pH5vETtr*<`<Nz_TD6wJQ;3a%M-f)whiMrz92p+uPC(jUU#gb1}49sPlKD3b_Is`tA+!;sfXIt>YIiVoqZ((v!(Pp-c217K_Xyv)^lH~nU-lMcaTj!TJ`U>^dA`RM8=tM)R<mLOmwPgz<(K9+m39MqP};ed$ZfC&J-=4(I7#<#M8|j-3YVuHnB=STU)c<>KLB&neAiYjr#DZ>LnL(W{*)l!%kK;1}bP}OYkz?ieZHaAdK}o&RmpJ`vV@mjN}GJ9s{I*awxM4DQQ5Hxbdytia6z%k{x{HK?8JvAnBmo9sNVdfQH&mVo6hh8UKpl2rCCPu(v00)(*tO(DM;e69Fo8TG#zWSPtyaRmoQf9;IA0e}=&r5<+Y}70*VeaY};u|MqZAb+99_N;d&AG-;SL&EkC9o!{#di~ha1nb6ufL053jZ+BuiNUXq}34Nk^^1BVDtT0_)jcE#Gj|J+MC&y@@viQVmavGZ;Fco1bseSw*x}X<}DQ9nM>Jpbj5~SGX<uzJ&D87mj7jz$0(;x#lnzN>T_1yiQ3Ee2#%#(z`3UV$6yt1<P40*@GVqcS@$jLN6dln3V7Hpks0VA9@V>9NPctigL$oeQg5wW-?ooAHO{E`ES<>-j?L~gjLYK&>lT^kG+ZkcTUVMYnIZiQnqyRLJ@^&tLe)}OR8JxyXhZ)nRNVN#Tj$<W_x<>v?t>XHz=@67NtOci1#WU=P01%gqG#=|9k?@_GHxRB%}Z)WWV4~Al8bhz#{o3!sbkesGvOn`@Y>5z=wlx2p%mYMfCVgjI_&j4qn1>HmUMZV4j`_5fDOzX4y`<wu3=zJ%vMQdy$xzx}f<twrYF2Y!RnX=22V)q@kxcn=~9Unq%?^-qBU%yyG$WyZWUc1A}5;{;bH!-2bE1l!%EVX&$>BzymvYsQDtrGUjl&a`x-xkRgavt+9wwy!hU__rQH3)+mKe5zG4A%jl`)+q+gvC{oqMX!XLWQVmJjvjUAsDXvA>M716Zh=JcS%)lylN=e69(0=nFm9!h2A+sxwABWqqU97B=d=oU6$-Y6th|!cU<$k|C%@PBp=WSb5~7e!`!Y{Fn8~!t}EYpLbIKaF&r;)Dnn@1UI(bCvWue#_IUc;S-q>9Dl|aF>##VEm{!T$!O#gf`JkX9ajf1$(sDlUrKp3hZVKp437f_;_{05>soGwqQHeOxG~AwbFHUoo{t;TS#TY7Zz@1OV1+8|ZcG#W*u69<RDR;6OP!hrKRjFfk1y`(JsnK?ZhdU>8NuzEADtbDE&*FVbJm*<EBm%WyEux<RO=O_rlzodhB0-2dMyrYpH4>Z~i5uv%KKE;Kw@KsUwp4%rx%Ivvqpl|2a^6qQy?pM3;jOmy#ylax8|~o^VgNW*5&{R0T<_ob)8FGR$Z_20l^)3uQsvT6`eR;&)z*H<D`RBDw69_8ZYgmj@ZA@wlF0P{qkCML<P?;A{g6Nfbe2Rz7!-Cej~S+3_%QQP3^gN<t0ck8Kl6#d;ydd;`Y8YE4ta0UUHVi;%9-S#+%$I&C%2E-Nd@;`yS3dIL_*%1r7;q^Ol#1mEf(*NfERZfjIPO}0D?||8`GYQ=D_dl4^+yfZWyYMBL!uqK{McFX$7Nkxf8~W{M{Ns^VN)gXf{$2a6g0KY20QQ4%hKc%U*bcf=@jecyG-WUi6X7eK!hU>Lv?F5=4PNOe$QTJ`CbqQ{U%pcdD}Lwa(;wF`+!Eb3bS%19jvr+_RbBA(yWD&4)3mmI#;@H)|4!?24iv^Yh`lnr2N_%GNIr<Q}2swO(LoAO|Vx`%v4QJtfOcH*hNqKC#^rsAc1ct5w$Sy5WiT_VKI**11|58v|8|_G5l(Lq<X^P^IYgMCio%1t(?UT-v{rMPX4<rs~|Ow4F6iLZ7;$*vQE8YvL5>fu`%bp`b`=Qy(`}8UKFEz>}P7Qu3FMfKM3+Q_=_azQJ}MNp-;DQrQz-EtH|*nC_@$<xFS0(iN_|uR`*yZ6g1Wq8jeyqS-zXvE-Q<j~}#OD$1ULK?YG<(UrE~2;j->Ok4tf2nQj>@O-CMCgULOfFH}Zq+9h0b>{7(y|hz8-guk>N;0)5bY@P^fAz=iDRa;zQK84Ivbi~MAm`;mI8%w&VSW^ZXeNk-JGhsVX)&9*iUholhVNJO5V*ib3;87rDnY`LBnyK~m(|;6uqHy10Xy{^G6b_=?cTu+u+8MY6g1e%o;>Qo*bC|aiO5E31@r}v=GsrVC8hLw1W9G$g+)QG%R6z+laqE7y`m{Cso<&n*tuUb*L=%L1aW-*dkjIu2KHt?`LeFs*E%IDjPJ2I#G@?adh&*T=a7h9zi2Vx$Tr)vGbS10fx^f6&%k_sDd_)Z?r+-oqEu|g;dYvlkC^X5bBuaYyhEDf)1}o@L46rWEkld>YNGQ6rtW|vI2sWm-x|Wq&bD)@O=w$#qv^_CuJE2ii}><<7t-yuJ{iGAD|_J0<;g$@-<qQhYrKDCs&ewN-kPL54rK0PV(_MEJQafE@Fbcc0l3(@i;?oC_xk;Sj=H@YE?&z%z<*9l3-SV?7o&7U_~)7j`Q(<T%e<Iz5<vH=!f=Zd|6RA%dL?}_e2u3Koy>96c|KCCv_HAYI3+TKc%QSGnY|>4QG3j_5OZj3&SJss1DD`VKkT)MM`J#r5@dKjW%G+l@=2_Uunb9F0~PHIZhivQ>gMwj3PvAQbes32lE>5MG$naC`amwk3xf9HBL^ZTnJShU@-ws#XHA53a|X^cGAvu8dmPsM4{rl5!pKM%l%T5<r5>IRzCAH_x4b^pL(2g?TItIYO|1YXN9O0FKN2W^tEmF*nM|B`-F3RTL*6|H<yVycs-AR(qHQ-x%%mx}5opo)7m_}SaG(J@UI7|R@%zpB#3@$-Bi`;&_L*yd^xjAj);Hb+vj&--C|dY4(%dLbq4S+!Df)-#25%z>LK?$&j_Pi#1zeiL;>kq8J4tA5bnisBFghCaf`Tr5er-0i>L5|Bw7v7w$=zi%$NOt)>tx;oVr`Q>Ti3ZI68+|u`X7<82j_|^1-|($?r&my=S#Zfu*7!WUtaE=?e%#oe(6?cCs;`hwST8JzET-}|A=g|*52J?R%4tZ3f7?lL$;YBj$h$V3pcFs@YQfkp*O{Ros!J@1GjMGgJIn|TrF~!V8}+uj0y%{Sk4368!1=HFTf^O`)C#WR!*Y}9$W+{7T~im^U);JG+<-xuLAdw>97^$<d(-&uwLG`C-;}Fx#Sn|o-X}QvF&fY1k8;Sdt7J`e4w<GMhgBwwr34?#)7E!T1Ep&*b_W1@I5zLgf>B&zvgyv@_HFr-op*T#J=r<>rq+2Y!4V%xl+w}@{NX3eeDeBG2=E+1XccywJuj|Wo@wXDm`_cZ|umNcgJnvpAWjb#!Iy=_R^ijkUS#Itr<11bE>X7Mxs6W)i3(o3xG)ur8+ohZTqMI2o**OhqT9AyBvPRZ=FsKuivVnG(L6SD;Mn!9(?N7qONEURKr!fUJmUo_l<mc7(G1&CNe4YveqpK*w*1@GSTo!xkAaUmo0iQ=ZZ<@y-K*Ok^?(hxiWIO0{7(OL3%5lOU!=uPFhj?=3i<=SM`l*&a1|=#qG~p=Qd^f`<zJczH>~rm%8`gRXx-^uKT%ok%ng&_}TU3#sv$QkW+@h6$2@tqo>*mgBR9GZc9=ESs#%)vM<Qz&{0i`7-LfHsKmtLe(W0>AH^4RqY(zmSVf0HL|N{l!zAco^2*{`9AFq_t{&A$qIOYieS1M-zC`;IIE<q#h#>U@y^R>0Pw63r#h0EMXQnwuS@MV2Hgm;_kz-BZRtb85#wxE{zcc%09n1rtK=F96r1kx@CwA;vfq7(MJu6qbLh=$W$YV(n(gv+pwpx52J+kM$^6m5g1)Dk<K=t$km{Y6&Ic{(cyO+e_z@fw2e($$tPXsRNc#}S6M&T^I+y_D{To3qx0cYq@7-Jm(70oLg;(Y?o_%FL=avajpu>@ccB~SF$rISo~Do*eMikA8v<t`fi<32>?pl^0q&Hv!Iug|B6cKL`1%w6)T$T5x5=)Q!pOkK5a4|o`_b^N^q(kOCDMOS$=hmfQRd%%4Fq%l5P)xN0uwu$NSA~uz>ejZWF7>3)e7r-ff{GL06smd*nMrFht8O*|puPXivDc3)oKD_I5ABdqi7)oAzCRZ0K<};b+jAog9w$s|U@EUj)l@YehfLkA~f&o=JmBq2$)d0b^iUS+6%I3f^g%H^7bL1HUy_YB<U_BO<l%hHZJwL}h0-K`d%qSgH@Erj{*+L|;%Vxt^%SzmS28?(=NI_)n5%+cbC0+P?M?jj+=Ya-CM{7M!TW|pfEA)7W6Kx}g*~0=Jgy_(QZ%96<X*_8IKFS`MlUJSeAYSUDOqgZsFjX>zURA)yGUp*&|D%UjYu(Xa1%>1I%@pjSEZQHA$1i5xwlhDc>$rlW(c<^|%O>-f#TgTVV(Ix}rr!U;BS_~Zy%?PqBe~F_{?Tz*Q;Y^YvEwFOM1Xk(-v93i*zx>~neM_&oF=NF0ySyiYW+#gl_tMs%~7VzaYY26z^#YpzVX&6Y1C(==w2wMAWn*+tr8NL;FznxzmT_go+e_jD1R)#i>dk{26MQcGlTMo#uxdE6sbS^;}7ky@Rg43>!pJ1p*g+jnJ3obW!J^_<l6%zyGlvMq-ZbEIgH1U{|&f}CEswP3pZ2ZIHgzWx43S4?^FF`@x8goDn$5zYP)oa=T3(j+w@#tY1988+_c&R#Vc5E@AV@PA%$0C?&f2_MIguYMFGHyt!h89L?A<pplKd(CEIF}rU4(Cbf3U3-#)8G5yxhynFesj$iWdLJUjtz7n%(9rza7uge7JM<L!@y?zvzGXq=UVE#oELyX*?6W!Dt6{Zz5FV!ZL&hIfSBJs9v+Db}TlU2O3~nMi2ek&B9_nJns9<Fuq`2ED{rS!La2m5h24wf?MmU_9hv*65oEophLhsWe~hub05gNUN&>oK0ixxivH83Q@+_<VB4GVJPKPJTi55V9>E{(K3O_ST%fK>7hKdWhCuE=C~^)2c-_>1QvIWiUJ2{gIrqrIK<2m01)8mS>78mjJQ~!7#O)(ZJKSUoI6HT&h8%V06y_z_=zCiiy^aOdUJXuB}`QyiP)To!PX$I)uFO|MQ*e_1zR$ZRDiHQQ4BYhFkeC8A&b27^JAn`M-f6yF-CW+s3K;?Ka;@rU@kx4z-BoGt}YC*rcT<B9{CY1^Pp~;o|Gna-Da%Q_nx5fcV_U>7M%K}xr~#Eq22dXb}ZHiUtNdB>T`z`iXp^LS4v*mfk`|dpn=;QJiksp8Fr={IT~WP;i^|luchBWjD3PfrQ6boL)f*ea$F6_^vL_*48gJN)c(4h&Zk#fOj+P?$JJLdlknhG&vt*ko^tGzysKa+ikh+HD{vgFS=pC6HhcX)8;P$M1wO8Rjd`Djh%j!UfIit7Ju}2Y+sD1D`%$IOJ_-C^IBcmWHnTkT`AfJ5^AeM5P$7BPp)j{;V5ulY<J>1KdVErLZ9guz^2nr(U9Z3v(-E@}g`Vq1!MKY^Omz=w9Mu|?+&<(On-SQBL|HyPb%ap04f<`Lx5o~CPfn!>p)=<YLm(>0SF79qixiGsq`?J2ii1WYN8I*%j&Ey4<Wm(~{y_F7Y>puwW`|2T<<-YpHL}=`NfKYcCAx=^)g{1^zy|8oAcS|@i=A|AxCjSJT;5{U%ctF^8o!zON*Xt&p(*r8GnWNdMsl>Hm8g)mSgv*KGX@lbn+mOqNK41Dn~b|!@CO3`Ls27Ip0(LO_Z#z0v(L5{KKw+X=OF5qTrH!IQAmTsqz@KE5*!_P-S2TDWTd1<W~-JK<+&@Pk`iL|d4o^U`3^&LQ{6}^X?k9LP&vjWal>KD7Zb(oyT+Y~8a3-5%=x19*k959knQlG{>x_fVI5kl*o8Qi|3k`e0ejj=qo)`b$cAAr`Q#7){m8jC1&$KxA)N&qonXkJ-jdh4+CL&BLJ7o^2&RHe(>K13!Qk%gS38m%Yq1U=|1jZnV`g@61k(iXDz)fgCUijs9-u2A+e?epsW+^=TS4R==bP5`RA`D1rSz7+{aMv7=eBB-OQL?yh`9HwDuED<BOA&~;Zt@4@zTqi0Z#Ue1EYYIKi@oWat(`(^jC*^aU>R64lO^>t~OQTC+L>YHgj`LmuI{C0%4Qn$heBMoqR0^p>QZU@JwvXG?#26xnVf_73a~wtlkl?QDZ^1N;VC;ch=M%q(QABDsPu;r6kQsZoxZMepxO7URm+PUg@JAeAz^|7;y?pxOZYKGn<`vp*r93T?2Ew0r0(@{13$n9w$WIm^8~3Y^1hUy8hx0B4_{I=-HaqKMS5(?>&G4cxVAMs)!8BYJKG9HwjqKvo<e%=0RMHO?6EfG=w}#&+5V&o567<UX!<*0#yJn&%#2o0_Rm`cAQo36i12Wa4D3!2<h?CpK<jT+XUk^0C^YFbI3zW0z$beS24t;9ThR=Hw0fmk-!JRN2p%@&#bte3rQ}3iR`{dAJh$GQOy@aF4nYf^VHG6kYct{9!GM)DD3Sj+WLAIw#y=CV}@QxRT9jqV=iRoGp$0h*dWV<duMk%N=(-DjajLwms*YBk$^D-G_UA|nZJGV+3E^SMPI?BM;+0bDk01i16Qu2khyV6M;P>grk*$ah0Q<@^qc2R!THVMST}~C_>+5WO!UaMGHgXR&rSrIMv+!@AZkuaiD?RN1Zk_n93RoS5MXS9Y|yg4T9MsAV3LKldP>}Vws_z{&SpNI!k-qo+$yl9H@B7$8`I}KVH7`6tMrwjVFywWIWq~Zf3T}S#=ECYxBIhj!4tFdSc7tph$;r`!ri2UO)hTucgfB5ges8s<DTMK1WVtnSL%2(mhPmq)u7D5N2{dDuR(T{KhDeMw`t@jPHW<|I;MB60w#kiiW4(yC;ew+VJYAGS_Vz#C4tqrD@GRM8vUDkF8mxe@0zJ&*t?76D?D*mVC&`OE*7sC**q}LeUfPoS24$g%H2L^{OSY5Xv5}S-YDss1k8MhL2)N-!H^nQ+kcO9(e4VzfI%K()&?ta&T`+<m~B-@k$Rq(QvkZxVA})x{6jinZ&B&~;oGJ9NG2@ld}j#l+(NcfU=S#DGU)rU4Nxp_u7N(}4K4qSIsHL(v68BKc$#TL9w${hX*3?yX<h^aAjqXXJ&6W`WEm;Fr=!Bt82HSc!krh)hg!W2<G7Z$Edo59X;~X;R}k|MAh+^ehbt&hkCit;oHurzf7l*R^HpJ0XE{{BgGd+SaI2i#jzu0bWDus53-SB^25xor)f~j#cWku4I}dGTTHm+4fOq@-Cug7ld{-1H&jD#R4ls7ZmdK4xozs8mX~gAbb7`Q1l4fYm5;DF0gQ(zO8x%I+D5LDYtwv$3)s*LkW)^XG+V;NdkILd7s31$1X~jMQcaqy{<P#J#ryP-56G1ld?H$T$y|gd5f?z_F%zZ~Asdn3iIhB}fS7GO=d@o38sk3>2$gux{zfm=lqJ)*DNzw-CSmEP3oDj{^DUXLuYrsV<zE&amzwlBoT4#o+o9?qq76E0J(cTS>#aFvd0h93EL4LxZyg19>u5!(sJ(bLgiNGZbdQ=f-cntBrwj7{~6q*D73D6MhB<9=eueYN0dxkhmdNc`n@bmU?VO-exCgW9mDGWOSGhU+3%CC~RkU4700%_nqDd1y+6MXJmA17f0O`Yys>xcP?Hs)vdjn}BMBO6i=Bn|VTVEXGcoXTSCg!5OSKn?+OISwl)1wjSf{Ac8G$#K<C=S1d9RU%gJO4L)iQShz$rQj=Z(vTwni2cM9@JL<9)Xeix&Te6>07UT!E&^M8;e$C{;k+b@p7-6?bQ$qN0XjBNwFueFY&1`6fw7?Da~x2XJ^DEZLCxFKFd9<OkM&QkGNHC-l^e$Sqc3<9M=goETZlS}->1gYdZr%BmJ{~(ikddKa~yGMQMrI&(c@Au4DkjJdn{Z`CBc*c5cSD;r{)XxJ0Rw~qSnB(!n>}Z>aJSLrJkHlWX*TH2W*-#g*hft>z2(MAO~S@x;<onL3Ni!@5(luyVfKzo<+}YM^o<^hInqg&Iw#@1?~i87mJd0@&X>RFaWI02|_y-2`%Pgbmcc#Qk~BXu>b;}me_;pIiUaL=<A3jSlFu*Azwzm3KLl}ZQf#}LK?so>Pb9;C&oAS`=p`fiI$qTbrXd#j&6>6kQy{|f}_8y-S#hf<3OG0Ry$T~(5<8YLkB4rFlk<l`A87+_~h2ID>u8sVj*Nt#}o!3sv<LD0^{Nc(Rw#$^R;kJ%g?zMTx6k(q*|`Tj|c!nufr2F*h6!xRu($6>-_Uov!8Kah%7Efg8JeQjK_Z0d&%PJ0P?2}_pmI<<_cg}Jk2thY4;-~A@icq!%Nw{AE{H%VLf@svV|GD+!L2Pt<h?>C{k6T4N9hiLtEiu6#>fgcGCa$Us~Ar@S6(wu7v3+`@mNZgX95QA3dZPj(>L)BOsd&LK0bW*nkKUG#cFi(#j%X%b*~SBc(C+SU)|XojfXGF@te;K{8L170;}c^<h8O_S(rt#y5VOze8`0gLUUkym=`m)J^84ic_!N4f=M*GtTXANB!IGvLc?obDw(MUjgFsz25R%K+-1ONkO|fGC>@#yj{inJ8YE)laz_gLZdc!(9emQtS%wr8Ut0^&7{GI@U_a^J2JKPOR$8>q&Gg0oQ~;E*9M`4G6nDAD*mh$A@+&{b4ThSJI{SF(M69&mDB6RCcEk6og@?EEE8A8&Ep21iw-XpfEtwa(l(c^j^~-OtCoMCFIo*z6X@oxR@0PjvijWrNMNiwrlC8a77t)&pw%)M!w^~?c&8Ke<QWpkb73#*jrFe;=>6{EG-FYJZX1uZF@o2aXICHGm`Ac!gsb2SFcCU6Wo%fqZ#_L0+Teu{_esySZyJ`Bi=@C;ML=>K@cEvI!n9B=@WUUG3r4kPU3+!7+#NjH?F^5C#QlXO%3tIDoXX7GMb30d!qi`RghvSfPJ4UIPulS;^>)DXgUnZo20F4_Hk7KI>D5pz-RBvVbG+Sv>|?&59-GSf9a@Zq@-2;eX@PtPIM_tdzmx<s$>EcWxNxaQ$&2k$N82?V<sFXo{1l<X%K-~^T7HHuIuF+-kA7&-xgu5}(%qo1Y=cYVmRRk%&fYL8")
-        _0xD = bytes([_b ^ _0xK[_i % len(_0xK)] for _i, _b in enumerate(_0xP)])
-        _0xR = zlib.decompress(_0xD)
-        _0xC = marshal.loads(_0xR)
-        exec(_0xC, globals())
-    except Exception as _err:
-        print("[!] Security Integrity Check Failed on gtraffic_runner:", _err, file=sys.stderr)
-        sys.exit(1)
+        req = urllib.request.Request(img_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp, open(temp_img, "wb") as f:
+            f.write(resp.read())
+        ocr = get_ocr()
+        res, _ = ocr(temp_img)
+        lines = [line[1] for line in (res or [])]
+        log(f"[*] OCR extracted {len(lines)} lines from campaign image.")
+        candidates = extract_domain_candidates(lines)
+        if candidates:
+            log(f"[*] Domain candidates from image: {candidates}")
+            for c in candidates:
+                live_res = probe_domain_live(c)
+                live_url = live_res[0] if isinstance(live_res, tuple) else live_res
+                if live_url and is_actual_sponsor(live_url):
+                    log(f"[+] Found verified live sponsor from image: {live_url}")
+                    return live_url
+            for c in candidates:
+                live_res = probe_domain_live(c)
+                live_url = live_res[0] if isinstance(live_res, tuple) else live_res
+                if live_url:
+                    return live_url
+    except Exception as e:
+        log(f"[!] OCR resolution note: {e}")
+    finally:
+        if os.path.exists(temp_img):
+            try: os.remove(temp_img)
+            except Exception: pass
+
+    return None
+
+def run(target_url: str = None, headless: bool = False):
+    if not target_url:
+        target_url = sys.argv[1].strip() if len(sys.argv) > 1 and sys.argv[1].startswith("http") else "https://gtraffic.io/X3BR2OQ"
+
+    if "--headless" in sys.argv or "-h" in sys.argv or os.environ.get("GTRAFFIC_HEADLESS") == "1":
+        headless = True
+
+    log(f"[*] Target Gtraffic URL: {target_url}")
+    log(f"[*] Starting Gtraffic Autonomous Engine (Headless: {headless})...")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=CHROME_PATH,
+            headless=headless,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-infobars",
+                "--no-first-run"
+            ]
+        )
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 850},
+            locale="vi-VN",
+            timezone_id="Asia/Ho_Chi_Minh",
+            ignore_https_errors=True
+        )
+
+        final_destination = None
+
+        # TAB 1: Gtraffic Page
+        page1 = context.new_page()
+        campaign_info = {}
+        sponsor_domain = None
+
+        def on_gtraffic_response(res):
+            nonlocal final_destination
+            u = res.url
+            # Capture campaign info
+            if "api/url/get" in u or ("api/url" in u and "tracking" not in u and "done" not in u):
+                try:
+                    data = res.json()
+                    dk = data.get("data_keyword") or {}
+                    kw_t = dk.get("keyword_text")
+                    src_t = dk.get("source")
+                    if kw_t is not None:
+                        campaign_info["keyword_text"] = kw_t
+                    if src_t is not None:
+                        campaign_info["source"] = src_t
+                    log(f"[TAB 1] Active Campaign: '{campaign_info.get('keyword_text')}' | Image: {campaign_info.get('source')}")
+                except Exception:
+                    pass
+            # Capture final tracking URL
+            if "tracking-url" in u or "api/url/done" in u:
+                try:
+                    data = res.json()
+                    log(f"[*] API response from {u}: {data}")
+                    dl = data.get("data_link")
+                    if isinstance(dl, dict) and dl.get("url") and is_valid_destination(dl.get("url"), sponsor_domain):
+                        final_destination = dl.get("url")
+                        log(f"🎉 DESTINATION URL INTERCEPTED FROM DATA_LINK: {final_destination}")
+                    elif isinstance(dl, str) and is_valid_destination(dl, sponsor_domain):
+                        final_destination = dl
+                        log(f"🎉 DESTINATION URL INTERCEPTED FROM DATA_LINK STR: {final_destination}")
+                    for k in ["result", "url", "link", "destination", "redirect", "redirect_url"]:
+                        val = data.get(k)
+                        if isinstance(val, str) and is_valid_destination(val, sponsor_domain):
+                            final_destination = val
+                            log(f"🎉 DESTINATION URL INTERCEPTED FROM API: {final_destination}")
+                            break
+                except Exception as ex:
+                    log(f"[!] Tracking parse note: {ex}")
+
+        def on_page1_nav(frame):
+            nonlocal final_destination
+            if frame == page1.main_frame:
+                u = frame.url
+                if is_valid_destination(u, sponsor_domain):
+                    final_destination = u
+                    log(f"🎉 DESTINATION URL INTERCEPTED FROM NAVIGATION: {final_destination}")
+
+        def on_popup_page(p):
+            def on_pop_nav(frame):
+                nonlocal final_destination
+                if frame == p.main_frame:
+                    u = frame.url
+                    if is_valid_destination(u, sponsor_domain):
+                        final_destination = u
+                        log(f"🎉 DESTINATION URL INTERCEPTED FROM POPUP: {final_destination}")
+            p.on("framenavigated", on_pop_nav)
+
+        context.on("page", on_popup_page)
+        page1.on("framenavigated", on_page1_nav)
+        page1.on("response", on_gtraffic_response)
+
+        log("[TAB 1] Navigating to Gtraffic shortlink...")
+        try:
+            page1.goto(target_url, wait_until="networkidle", timeout=40000)
+        except Exception as e:
+            log(f"[!] Warning on initial goto: {e}")
+        
+        # Wait for page1's own API campaign info response
+        for _ in range(20):
+            if campaign_info.get("keyword_text") or campaign_info.get("source"):
+                break
+            time.sleep(0.5)
+
+        if not campaign_info.get("keyword_text") or not campaign_info.get("source"):
+            try:
+                dom_camp = page1.evaluate("""() => {
+                    const img = document.querySelector('img[src*="cdn.gtraffic.io"]')?.src || '';
+                    return { img };
+                }""")
+                if dom_camp.get("img") and not campaign_info.get("source"):
+                    campaign_info["source"] = dom_camp["img"]
+            except Exception:
+                pass
+
+        # Resolve sponsor domain
+        kw = campaign_info.get("keyword_text", "")
+        img = campaign_info.get("source", "")
+        log(f"[TAB 1] Active Campaign: '{kw}' | Image: {img}")
+        sponsor_domain = resolve_sponsor_domain(kw, img)
+
+        if not sponsor_domain:
+            log("[!] Could not determine sponsor website. Halting.")
+            browser.close()
+            return
+
+        log(f"🎉 TARGET SPONSOR WEBSITE FOR GTRAFFIC: {sponsor_domain}")
+
+        # TAB 2: Sponsor Website
+        page2 = context.new_page()
+        page2.set_viewport_size({"width": 1280, "height": 800})
+
+        # Load real andanh.js with math helpers
+        andanh_file = os.path.join(ROOT_DIR, "src", "core", "andanh.js")
+        real_andanh_code = ""
+        if os.path.exists(andanh_file):
+            try:
+                with open(andanh_file, "r", encoding="utf-8") as f_an:
+                    real_andanh_code = f_an.read()
+            except Exception:
+                pass
+
+        if real_andanh_code:
+            page2.route("**/andanh.js", lambda route: route.fulfill(
+                status=200,
+                content_type="application/javascript",
+                body=real_andanh_code
+            ))
+
+        # Route intercept browser-challenge.js (fulfill with expected rid token)
+        def handle_browser_challenge(route):
+            url = route.request.url
+            import urllib.parse
+            parsed = urllib.parse.urlparse(url)
+            qs = urllib.parse.parse_qs(parsed.query)
+            rid = qs.get("rid", [""])[0]
+            log(f"[+] Bypass browser-challenge.js verified for rid: '{rid}'")
+            route.fulfill(
+                status=200,
+                content_type="application/javascript",
+                body=f"window.__browser_challenge_ok = '{rid}';"
+            )
+        page2.route("**/browser-challenge.js*", handle_browser_challenge)
+
+        # 1. Neutralize detectIncognito cleanly & prevent overwriting
+        page2.add_init_script("""
+            Object.defineProperty(window, 'detectIncognito', {
+                get: () => async () => ({ isPrivate: false, browserName: 'Chrome' }),
+                set: () => {},
+                configurable: false
+            });
+            window.alert = function() {};
+            if (window.navigator && window.navigator.webkitTemporaryStorage) {
+                window.navigator.webkitTemporaryStorage.queryUsageAndQuota = function(s, e) {
+                    if (typeof s === 'function') s(100, 100000000000);
+                };
+            }
+        """)
+
+        extracted_code = None
+
+        def on_page2_response(res):
+            nonlocal extracted_code
+            if extracted_code:
+                return
+            try:
+                if any(k in res.url for k in ["api/code", "process-code"]):
+                    data = res.json()
+                    c = data.get("code") or data.get("data") or data.get("token") or data.get("c")
+                    if isinstance(c, dict):
+                        c = c.get("code") or c.get("token")
+                    if c and isinstance(c, str):
+                        c_str = c.strip()
+                        if 4 <= len(c_str) <= 25 and not any(w in c_str.lower() for w in ["wait", "giây", "chờ", "vui"]):
+                            extracted_code = c_str
+                            log(f"\n==========================================")
+                            log(f"💎 EXTRACTED CODE FROM NETWORK API: {extracted_code}")
+                            log(f"==========================================\n")
+            except Exception:
+                pass
+
+        page2.on("response", on_page2_response)
+
+        is_direct = "direct.gtraffic.io" in target_url or "dr-client" in target_url
+        ref_header = "" if is_direct else "https://www.google.com/"
+        log(f"[TAB 2] Opening sponsor site (Direct={is_direct}): {sponsor_domain}")
+        try:
+            if ref_header:
+                page2.goto(sponsor_domain, wait_until="domcontentloaded", referer=ref_header, timeout=40000)
+            else:
+                page2.goto(sponsor_domain, wait_until="domcontentloaded", timeout=40000)
+        except Exception as e:
+            log(f"[!] Warning on sponsor goto: {e}")
+        time.sleep(2)
+
+        # Clear runb, flag1, runr, cmnmf, mtkf, doneg, coo3, coo4, can cookies so click triggers freshly
+        try:
+            page2.evaluate("""() => {
+                const cookies = ['runb', 'flag1', 'runr', 'cmnmf', 'mtkf', 'doneg', 'coo3', 'coo4', 'can'];
+                cookies.forEach(c => {
+                    document.cookie = c + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                    document.cookie = c + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=' + window.location.hostname + ';';
+                });
+                document.querySelectorAll('body > *').forEach(el => {
+                    el.style.visibility = 'visible';
+                    el.style.opacity = '1';
+                });
+                document.querySelectorAll('.modal, .popup, #ad_banner').forEach(el => el.remove());
+            }""")
+        except Exception:
+            pass
+
+        # Locate GTraffic button (handles trade-btn-clf, traffic-button-no, trade-btn, trade-d-btn, etc.)
+        btn_selector = '#trade-btn-clf, #trade-btn, #trade-d-btn, .trade-d-btn-container, #traffic-button-no, .trade-btn-clf, .trade-btn, #trade-d-btn button, #trade-d-btn a, button:has-text("LẤY MÃ"), a:has-text("LẤY MÃ"), [id*="trade-btn"]'
+        log(f"[TAB 2] Scrolling to locate Gtraffic button...")
+
+        # Scroll to bottom first
+        try:
+            page2.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            time.sleep(1)
+        except Exception:
+            pass
+
+        btn = None
+        for _ in range(15):
+            candidates = page2.locator(btn_selector)
+            for idx in range(candidates.count()):
+                c_el = candidates.nth(idx)
+                box = c_el.bounding_box()
+                if box and (box['height'] > 5 or box['width'] > 5):
+                    btn = c_el
+                    break
+            if btn:
+                break
+            page2.mouse.wheel(0, 500)
+            time.sleep(0.3)
+
+        # Trigger click with JavaScript for all button variants
+        try:
+            page2.evaluate("""() => {
+                const targets = [
+                    document.getElementById('trade-d-btn'),
+                    document.querySelector('.trade-d-btn-container'),
+                    document.getElementById('trade-btn-clf'),
+                    document.getElementById('trade-btn'),
+                    document.getElementById('traffic-button-no')
+                ].filter(Boolean);
+                for (const el of targets) {
+                    el.scrollIntoView({ behavior: 'instant', block: 'center' });
+                    if (typeof el.onclick === 'function') el.onclick();
+                    el.click();
+                    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                }
+            }""")
+        except Exception:
+            pass
+
+        if btn:
+            try:
+                btn.scroll_into_view_if_needed()
+                time.sleep(0.5)
+                btn.click(force=True, timeout=3000)
+            except Exception:
+                pass
+
+        log("⚡ KÍCH HOẠT: Đã nhấn nút 'LẤY MÃ' ➔ Bộ đếm bắt đầu chạy!")
+
+        # Check for CaptchaNo challenge
+        time.sleep(1.5)
+        is_captcha = page2.evaluate("""() => {
+            const c = document.querySelector('.captchano-container');
+            return c && !c.classList.contains('hidden');
+        }""")
+
+        if is_captcha:
+            log("[!] CaptchaNo challenge detected! Solving...")
+            for _ in range(10):
+                src = page2.evaluate("() => document.getElementById('captchano-img')?.src || ''")
+                if src and len(src) > 50:
+                    break
+                time.sleep(0.5)
+
+            opts = page2.evaluate("() => Array.from(document.querySelectorAll('input[name=\"captchano-choice\"]')).map(el => el.value)")
+            chosen_opt = None
+            if src.startswith("data:image"):
+                import base64
+                b64 = src.split(",", 1)[1]
+                img_bytes = base64.b64decode(b64)
+                ocr = get_ocr()
+                res, _ = ocr(img_bytes)
+                ocr_text = " ".join([line[1] for line in (res or [])])
+                for opt in opts:
+                    if opt in ocr_text:
+                        chosen_opt = opt
+                        break
+
+            if not chosen_opt and opts:
+                chosen_opt = opts[0]
+
+            if chosen_opt:
+                page2.evaluate(f"""() => {{
+                    const r = document.querySelector('input[name="captchano-choice"][value="{chosen_opt}"]');
+                    if (r) {{
+                        r.checked = true;
+                        r.dispatchEvent(new Event('change'));
+                    }}
+                    const s = document.getElementById('captchano-submit');
+                    if (s) s.click();
+                }}""")
+                time.sleep(1.5)
+
+        # Countdown wait loop with continuous anti-stall scrolling (~95s max)
+        for s in range(1, 95):
+            if extracted_code:
+                break
+
+            # Anti-stall scrolling satisfies is_scroll2 requirement
+            page2.mouse.wheel(0, 100 if (s % 2 == 0) else -100)
+            time.sleep(1)
+
+            dom_data = page2.evaluate("""() => {
+                const c = document.querySelector('#trade-btn-clf__content, #trade-btn__content, #traffic-button-no__content, [id$="__content"]');
+                const b = document.querySelector('#trade-btn-clf, #trade-btn, #traffic-button-no, #trade-d-btn, #notice-btn, [id*="trade-btn"]');
+                const inputs = Array.from(document.querySelectorAll('input[value], [data-code]')).map(el => el.value || el.dataset.code);
+                return {
+                    content: (c && c.textContent) || "",
+                    btn: (b && b.textContent) || "",
+                    inputs: inputs
+                };
+            }""")
+
+            c_val = str(dom_data.get("content", "")).strip()
+            if s % 10 == 0 or (s >= 55 and s % 2 == 0) or (c_val and not c_val.isdigit()):
+                if s % 10 == 0 or s >= 55:
+                    log(f"  [Countdown] {s}s elapsed | Content: '{c_val}'")
+
+            # Check if content has transformed into code
+            if c_val and not c_val.isdigit() and len(c_val) >= 4:
+                cleaned = re.sub(r'^(?:Code|M[ãa]|M[ãa]\s*x[áa]c\s*nh[ậa]n|M[ãa]\s*KM)[\s\:\-]+', '', c_val, flags=re.IGNORECASE).strip()
+                if cleaned and not any(w in cleaned.lower() for w in ["giây", "chờ", "vui lòng", "robot"]):
+                    extracted_code = cleaned
+                    log(f"\n==========================================")
+                    log(f"💎 EXTRACTED GTRAFFIC CODE FROM CONTENT: {extracted_code}")
+                    log(f"==========================================\n")
+                    break
+
+            # Check inputs / data-code
+            for val in dom_data.get("inputs", []):
+                v_clean = str(val).strip()
+                if re.match(r'^[A-Za-z0-9]{5,20}$', v_clean) and not any(w in v_clean.lower() for w in ["giay", "giây", "code", "wait"]):
+                    extracted_code = v_clean
+                    log(f"\n==========================================")
+                    log(f"💎 EXTRACTED CODE FROM INPUT/DATA-ATTR: {extracted_code}")
+                    log(f"==========================================\n")
+                    break
+
+        if not extracted_code:
+            # Final fallback check in DOM
+            final_t = page2.evaluate("() => document.getElementById('trade-btn-clf')?.innerText || document.getElementById('traffic-button-no')?.innerText || document.body.innerText || ''").strip()
+            for m in re.finditer(r'\b([A-Za-z0-9]{5,20})\b', final_t):
+                w = m.group(1)
+                if w.lower() not in ["traffic", "button", "content", "google", "sponsor", "script", "vietnam", "mobile", "sunwin", "code", "robot"]:
+                    extracted_code = w
+                    log(f"💎 EXTRACTED CODE ON FALLBACK: {extracted_code}")
+                    break
+
+        try: page2.close()
+        except Exception: pass
+
+        if not extracted_code:
+            log("[!] Could not retrieve verification code from sponsor button. Halting.")
+            browser.close()
+            return
+
+        # Write code to extracted_code.txt
+        try:
+            with open(CODE_FILE, "w", encoding="utf-8") as fc:
+                fc.write(extracted_code)
+        except Exception:
+            pass
+
+        # Switch back to TAB 1 to submit code
+        log("[TAB 1] Switching back to Gtraffic tab to submit code...")
+        page1.bring_to_front()
+        time.sleep(1)
+
+        # Fill code
+        inp = page1.locator('input[placeholder*="Nhập mã xác nhận"], input[placeholder*="Nhập mã"], input[placeholder*="xác nhận"]').first
+        if inp.count() > 0:
+            inp.click()
+            inp.fill(extracted_code)
+            inp.dispatch_event("input")
+            inp.dispatch_event("change")
+            log(f"[+] Filled code '{extracted_code}' into Gtraffic form!")
+
+        time.sleep(1)
+        # Click submit button
+        submit_btn = page1.locator('button:has-text("Nhập mã xác nhận"), button:has-text("NHẬP MÃ XÁC NHẬN"), button:has-text("XÁC NHẬN")').first
+        if submit_btn.count() > 0:
+            submit_btn.click()
+            log("[+] Clicked 'NHẬP MÃ XÁC NHẬN'!")
+
+        # Wait for destination URL (listen to network response, DOM link reveal, or navigation)
+        log("[*] Waiting for destination URL unlock (up to 40s)...")
+        for sec in range(40):
+            time.sleep(1)
+            if is_valid_destination(final_destination, sponsor_domain):
+                break
+            # Check DOM for revealed link <a>
+            try:
+                revealed_links = page1.evaluate("""() => {
+                    return Array.from(document.querySelectorAll('a[href]'))
+                        .map(a => a.href)
+                        .filter(h => h && h.startsWith('http') && !h.includes('gtraffic.io') && !h.includes('facebook') && !h.includes('twitter') && !h.includes('instagram') && !h.includes('telegram') && !h.includes('linkedin'));
+                }""")
+                for lk in (revealed_links or []):
+                    if is_valid_destination(lk, sponsor_domain):
+                        final_destination = lk
+                        log(f"🎉 DESTINATION URL FOUND IN DOM LINK: {final_destination}")
+                        break
+            except Exception:
+                pass
+            if is_valid_destination(final_destination, sponsor_domain):
+                break
+            curr_url = page1.url
+            if is_valid_destination(curr_url, sponsor_domain):
+                final_destination = curr_url
+                break
+
+        if is_valid_destination(final_destination, sponsor_domain):
+            log(f"\n==========================================")
+            log(f"🎉 FINAL DESTINATION URL: {final_destination}")
+            log(f"==========================================\n")
+            try:
+                with open(DEST_FILE, "w", encoding="utf-8") as f:
+                    f.write(str(final_destination))
+                desk = os.path.expanduser(r"~\Desktop\destination_url.txt")
+                with open(desk, "w", encoding="utf-8") as fd:
+                    fd.write(str(final_destination))
+            except Exception:
+                pass
+            copy_to_clipboard(str(final_destination))
+        else:
+            log("[!] Warning: Could not unlock final destination URL from Gtraffic.")
+
+        browser.close()
 
 if __name__ == "__main__":
-    if "main" in globals():
-        globals()["main"]()
-    elif "run" in globals():
-        globals()["run"]()
+    run()
