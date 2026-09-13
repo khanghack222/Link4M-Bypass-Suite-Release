@@ -1,0 +1,33 @@
+# Gitignore for Link4M Bypass Suite Release
+*.log
+*.png
+*.html
+__pycache__/
+*.pyc
+build_dist/
+*.build/
+*.dist/
+*.onefile-build/
+destination_url.txt
+extracted_code.txt
+.venv/
+
+# Top secret research reports & reverse engineering
+BAO_CAO_NGHIEN_CUU_*.md
+RESEARCH_*.md
+research/
+release_native/
+gtraffic_profile/
+tests/
+adv_data.json
+camps_database.json
+src/camps_database.json
+service-v3.js
+src/results.txt
+*.zip
+!Link4M_Native_Binary_Release.zip
+
+# Internal beta engines (not published / not pushed)
+src/core/trafficvn_runner.py
+trafficvn_*
+*trafficvn*
