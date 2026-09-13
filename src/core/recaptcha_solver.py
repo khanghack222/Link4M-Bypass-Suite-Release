@@ -10,16 +10,16 @@ from config import CHROME_PATH
 
 _SHARED_MODEL = None
 
-def get_whisper_model(name: str = "base.en"):
+def get_whisper_model(name: str = "tiny.en"):
     global _SHARED_MODEL
     if _SHARED_MODEL is None:
-        print(f"[*] Loading Whisper '{name}' (cached)...", flush=True)
+        print(f"[*] Loading Whisper '{name}' (ultra-fast cached)...", flush=True)
         _SHARED_MODEL = whisper.load_model(name)
         print("[+] Whisper model loaded.", flush=True)
     return _SHARED_MODEL
 
 class RecaptchaAudioSolver:
-    def __init__(self, headless: bool = False, executable_path: str = CHROME_PATH, model_name: str = "base.en"):
+    def __init__(self, headless: bool = True, executable_path: str = CHROME_PATH, model_name: str = "tiny.en"):
         self.headless = headless
         self.executable_path = executable_path
         self.model = get_whisper_model(model_name)
