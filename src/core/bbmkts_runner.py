@@ -1,41 +1,611 @@
-# -*- coding: utf-8 -*-
-# Link4M Security Engine - Protected Native Module: bbmkts_runner
-# Protected by polymorphic bytecode encryption & anti-tamper integrity checks.
-__author__ = "khanghack222"
-__version__ = "4.2.0"
-__obfuscated__ = True
-__integrity_hash__ = "9f3c869f25d882bc8b59f879f08d72e5be87a5d82da35c091d765765433e4cf0"
+import sys
+import os
+import time
+import json
+import base64
+import re
+import urllib.request
+import urllib.parse
+from playwright.sync_api import sync_playwright
+from rapidocr_onnxruntime import RapidOCR
 
-import sys, os, zlib, marshal, base64
+# Cau hinh stdout UTF-8 cho terminal Windows
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-# Try loading high-speed native C machine code (.pyd) if available
-_pyd_loaded = False
-try:
-    _dir = os.path.dirname(os.path.abspath(__file__))
-    if _dir not in sys.path:
-        sys.path.insert(0, _dir)
-    import bbmkts_runner as _pyd_mod
-    for _attr in dir(_pyd_mod):
-        if not _attr.startswith("__"):
-            globals()[_attr] = getattr(_pyd_mod, _attr)
-    _pyd_loaded = True
-except (ImportError, AttributeError):
-    _pyd_loaded = False
+def log(msg):
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
-if not _pyd_loaded:
-    try:
-        _0xK = base64.b85decode("EWr2dG-G)F;d=<=aaObWel(I^@YbDFBi|XkDCWNx")
-        _0xP = base64.b85decode("R2mXdUl(I3cw2xb@>26@e0>61xkk5YVox1>ug>*rWgxWp>nugrdwo%%V|2SYd$fRmAg9vr6m3FP__#`sTI-r9->1x7ZQ_L25X3EzSJ}42E*k4Wgzep494Un`>$@?FOHaj!FRJp0zPQAee-M(~<}*_u>_a>fMl%B9@w-SD>5L8Gw1Jh(n|X?bgP7NH;%mG1XUll2b@LI^dBUhEW2S)ASW(Hdm;;(ew3=A1#Xt9EofYWmM6r`SgX;dcv!~`vNx`DVHR4-?6p&jUYW`eH26}x<yI8bOP><^+w^{0;^(Hl<Vu5CY+vkDHepgj20h@pRAS=ioL|rd0d@Zp-%K8+oRdGcCtC+FsYLm2lMzb{Qn<KZ3u>Eg<9)`x$Uz|@)N@E2rE7=1SRTBuFhSzeUUFw&LW2xWSnZT+SV<I7Ofb?IJUr7#>tQIZUDK9rb20Fr6IQ6wCES(=V8-H!+Yu;nXiH7kwI<qQz{J(Y2+xT~dqnfJPUdtN_>f+zm8fvDq7+jLZQQLpSzp2%P0e###xP-)DrxLgBu!AloP7(<=P``rRigW`7r<kiFl2~XqX57rYOJejEW`k3<J1p#v{_)n{j0Al{=UZ0dURV};jA@%76a8E{;1<zHti3JHHg=#%lcnVraZq$ECNE+MO4cgvum`Eb20bNpE;0nQF&n%lEQJw+!he93AKP4V#CB&W+W#BwHf4*OpT(m@UhV^QsIyRGi{z5mmAWN~V-vLg_8G;FJny<TCm3lnHE&B62-<wVFho_I0fS0UE!mAdvD54=))r<f<t1`%H|6}%J-29#zfmxgOVP%8R=n;Qd2AbF5Ubqqq0jYzP34Y%eugC-gRjjWKQtXaF#7{KEUQT`TE8gh*My2XGUXg+>xSK4+Ax!(>|nF?=8y&OISaPVt!1n<P9eQtxbs`LoTPIabsjS7$G8Hz@QFT-kvhPl$-ZlWA%6%o&m;hmBY;;Lm;x$ZfIun+(7&m{CLRR_3RqYB3>#PO$I~$<HTBbw3a%UT1g?&>+vIUdyuZaFVPC2C`n8W=iae(m;{%BwNZ45QexkwkDc#bcXn^WAbTPr|3gEGGg3-efI=5(JtBKtr{7%6$={9uy&8Dwy7E7MPvyS{FF}lC&(kIqdsatI>3sd*9@Y68IigwYV`ztQU;v5!4R=x#*vv(2&$#|LaFN4Tq#EiXvBw3v|!on(FOl<h6CmUD^Vk$4x3BKfI)@3<Im{J=hyR`+XuUAAv8DrjSC#6-=QvkA4&Pb97H*-ijbv$3jaN|3?l9wN~h{9cmKbU)bwAkL=>x`kZf6U!u2TE_+Kb~?fRGIKn-}a5s;A5(~G9#NMV5>^bZIV3aIE97*sv6&L{+mg?6UC*zA5orYlwymd2+%<~ii!61_klxdOG;*g^(B&7Yu!$>F-=CzT<f7WOA0V1WWDZ23BDqJ{7&7pFz%TiBz>B>JJwupj~qA5vKy@}l`;8_6Xm(WW}eXyO*p78Viz3ia@*Zg6!Ljw0g+2@)Q|YYM6T{h!^DA(_%ucEM=iP3?xQ+DKOZ%22tBERj`qe`X%(VeV>B7OKR5gPN_MRO)aL9WVT#OGymuP;AuXbu$F)tg(27EGZkee|Fg=*yRjtMg63EYi3{~Z&286Lu5_VBkVpd54h>v6TI9=8Y6|~K)*ySTKaOycj`2*GJ<p4^VGup2YUqtnuxJWOUq2|J?`&7uT=*N+ibD|<2Z@e^f^`FsM#_@jrC6zc^g%fcY-ax*e)irP!X15p_jT4?sXSMGw$t{|)!~YfGSNa^=ZpT7E3_lGoY|}XShTWA&nV+G56I|oySDh^6IqL)+87=u)`z5WW_;~}3&OStR4!L%YCE}fUGO|n+A1=Fihj}r3+TWZBR?BSi``)Iv(3uNy350+d$k?wle8h)W5e@#el7Z08G}-&)T0jY6(cDCV|5*P6G$o3uSFRkx4ocZK(n@UWfBL!ZV`)sD$eM{nD%v(AAVhc6a9tK*aEa-Rb;Jwq*}7xzI5_-t?tAgqX^4F35E%q%l){A?quJ%^-h_*(b?UO%*R_6x%m>5+TP}fLH%Aa;pKA8;tpA|^XgJ;qJ5Ke_%U(~?E0k~eOK9HnmJuIm0H%-^48`nh6%$h)9EK2AwfOJOGQ~G8b4BXpt*3AqD87<mlayiJF$aKNz4UN%ILwYQs59FM8Xpe`I{yqIAs%KtRoZi(fxEh3cl0d5>#)9+R!w=qM6Xx+*)IX-dz?sph`t-aDPZUH-48HBa}~Ww%Ny9xzz!oBWT=@&A7Y3ZRXj5IBH8<hs5jsWgpV&;1w9%-HKaJgkyW4pWw-Kiy<cJ8HmsE>CbxW^oi}U`iM{(w4NQw$i@PRcJs4irPw+E?mLWr0o>@tMI^%~9{lMUc|2Ksqr=me|8C7k!9mfS9u3|A8?pb4qTo>qOUH=Zo<?t}y#02z=!2l2{RcVtyZw8aHQxnkcSuV&gfS;?qhyp2k=XieD?jxNJO$fr9Zzb|WGe$+S50I+zm2t|}c}0I}k!$XU6x-YBx^95p3`n;?Yg$G;tGOD-6Q5rITJC{Qj+=Tt_sflzG!n|ds{G;Y<S`d~Qr$b~K^-L?1uD*G>sp*5HJtSbgjlpb$@bENld)kP$q%PLdpZV~PDc#^{so8E;Y)U`LpN_WNwHkZz)Hl)&-|P4qqBrP4YRC>KGupDe$DM9&X4p|?eV@6)BPz&11E>WBQvtoM3?C}G@fRu@I;so(nIgka96kWyzLm%L{wMONbae5E?)jx5;m*-J&m1^rdcI^T1^W96q>{jR2T$KNXDsw6RVvqw^f+dpd;6HS9aN!mJI=w_I;Q}XK{}fdww9Z++r|!Vb!Scs07_WLQpjKO+8F-%?UkIQ;!X}M;oW%iEjHc=GZ6(zDy5dlvpYzgF!kHvg9GK%Y-8zTXIvgA6?icW&kP3v#x-QT<_EWlqW(Y0-5x;)yQ1L4V~_5GD`Iy>*=ZijIj|S`Lzuy#DjYQUxCY5!(D;XBQU4o#M@sl;%7Kogp1nlLJH@=dC`PD*B7o(3+L&A0fx3ACY$~SaEkr@q`F3(H2aTT$>eGn(nQD%(&RyUdi!gz_td=l#G534=OXQOJW=?}Y>}skG*M;Y6TDt{NS??`S!19-b}!#-4#<zH2Rh2(+O8=otc5@YdDReofFdWM7hdW8MVPjNj+1QY)l^j4;wP5_Jse6JQ`=#EH`q%memW6Qlc@fUBN5Wz{zu0?7HPHjD_ij!)rxD7tCHuRA9VM9F)i^CDc3TQHa22w*$_V<WB3`E<2tyq+q+X^o`hx?pM>I!mMhE^k{i`)mbrC;ihyf0;kc6}zr~4R#;=s~eupnAZ}}?}EDx8bf8gws*%QOtc8@C-2KH-cEPZ!BBA-=~Az`FL5`%2X@qF{sSJa%*NfH^9$f}kkd7<Cx{qR?j%N|01)h@VhFwM$-!x^`ny_oqkyntSHKDqoM#jm9BLMhoi{&aJR+zHAP=Gc0vM<U4((PGt&`Ja=O%sWI*O(CP>{kEg7RoxZ}6*eYEGE;cO->2`42OzLHj(_q(`R!=wQ8UFU{LV^WUmBtwnWFGt*o<(B#Mk>@0Iij6nJ>d*&3Z|1l6ob>J|j3LG(rLal)dr9lIgHogl?a69Dl>L3n8-G<tyM}zo4x7JiPx=LVUp~E(fi;-biT@?L{wODoDsGPj;aqmXY^ZtIiS;+op+tM#P)lWCc_NUB^tR|CZ}2CPeEKCa(LVgExs#n^a+@2mxX6nu!d##bjw{j5C4Z!r&eXZKy&Qb7cvi8|-=_Hsqw4Wzkq{Ve-TBD+y4@(WnM>`fz#U*q^jT7aIqmj11#Ui?Dr8@t*rpQMk{{nY~?M4+Xk(>5=GA0NGreAGkwD@W?mKfMpJ&58=%3VK{hl@I|j~()|4gieACOu7=Q)5et|p;e-d1NJnv@)WKj|kdYejB<qyX+K>swQFwFQd~gTinag>-G;&%b!jKpAMX4h})hTxM=SwT>;)=V=#5Bx&%4SfF`e!D!-06b@wq6zE|Gy(b%{)FU6_o187fB@tpRjR_hbc1aH*_9CmPrQ;QG{3=kuu<wgnM6+HKSEjRyd3dYa!xF7^rZpg%U*UFJpcNOA3r0dp9aeqQ~Le)UhkP{bwC};XxrF!iBbO+OHK<Pea1#ANos_Zlb&gsr7GmhW2}a$tOqi7U~e_njqxwBQ^d4qWXjFimEuku1ymaw+G#T3?f=<2MKO8#y$x{ifBt-4ziXma}q!t-M64()0olu5{`S;$yHbAQZVGWeJer{5W{pGSs;X9v-Wc=BU<i-A2=;*lc;L0QHoUEMn|IA*R}HyV&hfn?NCkPBaqJ;<iqgYL}<o^-tHvwh5+V|&!Mz$SH*g{P7da7G4Fk#`ZI4Aktgd^dYnbo9E5er*h5A#r_R}9H~gw6Qcoc*(OZ}Zkh;n3KK&|-$NOUx`ZoQ;xZDj2oi}fbR0}H<umbIHsx_Y@Zd;rOlwpkBCfB>Nw?LhnZ8hsN)TRR!KTX68d3Z)g{``8gCUgI4zf8rbD6!jqSrE<aA>qLq<vdF2etZ%+w<%3m28F%;r8WHewlOB#3Rq8Z`d$Ng|GYc8MfCz)sH7o<oPHMer$e`E{{GC^5rxS~SO50U3{>cbWXs9$pcNT{2PVodkbghEtS<6R5J~N@O>gQs)Ur0TuR6j#EtPBsJLy!dXDk@BvaLJIwhOLWx1x=<5Z>Og${}_rU_N#ZHzs^Jg8Qo<cN@r62(Dv_4dp)#oRHHo^7)AAoH6iA3tMHgD<Tu8J`HXSK^Gi0=U&`Xv+qxhP_CSB(EEQ9s2g?S-o)UZg^*!Ud{xy#ku4ac>wUzs7k5uzgao*(nR*6%Ye8%v*)(9*^`(H<4Aq#zH+<O`>hO7wL_eSPoPUvCt{zTHDb8*umvIT1r{?@k%|<;t&r7id1ydhuc?U2YgqIG@5|G&w#P55aA7L3le&~MGKb%I>49ULr?v5JnWI5qiN6}`-Yr){u>(7G5U!Gx;4E-e*3HH)B3+8hC>6RmHXvKHA7Nc6Dy<UUs110g~X{Jn}y8V%Cgh)2DE_Uww4y8xp*=zmaCu&FSfEIWOMSbm`46tqAh=p`j*l5Hxbn+O|)gO7pg)HN$$(5-FPQ_GdGi$=+RWw>GcUp)s<dLi%?vJp1&7q=RNo%qpgL?!8l)noU#SPN7ymG}~U=v-<Ctxty+H<%Y(eI8t5W+C`(a9C_Yk3fk!a~`LXmWHmAr$Y27A(}}{I<OG?^-fR2v<u;^9fsnvuWt28=MNkoj~dyu?(Ejg|n7o?@a4%@5<914qr}%$zrvAm7>Xo$0u>fhGgr;pSygZ9@e>8D@lFXrTkdu6A~&bO8X0Fu$7bSGV!|ewBoI2NEBM2l&9}^|4@mtIv;Jn^#4J1-|@aWMN^65=4KZcOD|O!2@MxVn+cj^Ujw@4s{MeO&JqkC8Jsd-7Bv@}gX*W<i_>=@z5E{H)d9ALGiBg;;`4SaJm)n>%fhrGZPunpJfxKc7^fnf?_YVg$P_bG_QLnO<tG3@*F6hAsQxSHg80+g;pcEgy7v*VL0oz7#rc0<)Qa%xzvm>aQ3n5Ogaa*LnT=^YXAX6MjPFPq1uYOTyGw<>JNhD!tMQU_zu>zMxK><HigT@<X}w=n6Y}3>8@zW;U${QH=jGgE+O+zjwgSyB@9DZJy_L&29&S_cZy~==Y+jWzUF)ibFP4Qp4q!-d7+tza+}lsPG=e7TDCnA&UoAFY-7&r@HnZmtq!_5{13E;VJ$RGG562qxgx`!Dpw{ga-Zyu+V{kOjiwzt(Cj`~-C#+kH#4+fHS4`#d<)_2e+`ltG3xicd4$ZVD>EQ%E$=|K0c$vCD%0j9{7xoodnA@YdVsO+?v`$BifK(fYj9=j-;gsd2j3XLYdsvFd>&B9mu<>W>cjSJx`B+#{=6Vo%Hs1fbz4`PD<(x8%Q}xC_KS10Hf*KG^^6_zmrAxrK?$sDj*S?&j!NYwA{{_BMa3q|j)FM7Q@856^)uRVY5ROCyi)2$ijzqH;hu`ABbeoV?+WCuIe7yd<AF4&30R`cct&c)bX@4Ac2y^f9N~W#p9c^=wgCfSLp{k^Pr(-Ai*ixE<E&ne~WEYC+8TZ2pAL)?P>Z@*={=4!le|^(JaE4m4pXn2Dt6|B)4;+f0A!W)-Y{!XNE5&pZAl%|)mb>mSS|-@=JEef|DZg|EKusc(?@Vz5d1n4yy<a7z6i0)u$@wEXE-6Z5PYWK+#S6XZ6I-47*hFe8ui9i0&X%Fj1$b&n&<TKvExj<*X)wAKZqqj#l{7<IR=M=H;}qMuSq`IFRuAEkj1eVVa(I;##h{PMKE#dimlN+Ji`Btp0@o_^oiB$@Sq-C|l4{}(&O-F+tF^?-4N3^C3NZm6B^+HRQPibr=FHOIYjfUaA6Wn8h}kS?rp<U=2i`Q~YUaCrV+5MUX%U><pV`}97biDJuXDd6nK*-0(ceXeJMjItZS8X_#9P@)`SfMAb2IiUA>Dg|0>}*;56=vd*Xj``z7tp>78aQ1or_qORNq)O?S+b-*>_u&kU=1aSC=Q(wMQ6=;zg%^^q*Ph(Z`=<DBs>Fm%^ta)dXbzyxHTkX{ou|vZG%lctZxpWd#?;nPo@~rLojyHI!l0`**}BM0z#Z7wqA5no}~5V+RpK>|y$Ih~%M`F}lC2>N@<xp>(LFdB_~8wU;;(I^nfw@})b5Wae!d^vh80wrDxfIt>a8zBQz-9$AEq0D}MQkqp;6n|~uEpO{8MOK5O)nThtbAB*LPt_-TUE0H>$Y4Ktg;{|EZ$$Aza6$N?=<(v;BwbS1D%fpOr=F>vsX-p74#8_lIh|c-fV}7C$p5GW04N~C6t%Kng5ghJa2#m`r7ipw$smt4gALB1aJSKS?Pld8S7bcHQ%XMshObAdl!r}Sqt3fe`ZG7o`G_=M4x84BwhDTZFUvw?)z7|4(ljOv9i3pU5xoG!a2imuA&wg<DPaFSiBL4xw_Fr96e($b?E#sr@#7s%uw_;5#O9*V28p_v(Lv<yq5Do3lH#(|cnoPkE^HXl6RQRZk#aO#tj$J|AT25*p2?;y`bnyR=+?R}d>GtR=w_4f>2ZY%1MOl{F<C%<4_$OErRaPy=37=5|3n}-3d5Hl?^IItw@#5Ti)V#HOGoKOVj*yn6-5-=csssx2*x14KQVA3y0w_hVej=&xUf&%Si_(IkWl?@BYgUZ}I!q^^{F11CcK_}kwXgOz_prONW%HCxn`c)H4oNfAnGQ;foc_Ew=LCNIP6H6&R@4f6+>Ta+UF1xjrmExGDr=Y!*c@@h`TtM$fCg+yM|RGlz~Z?2Q&oKeYn`hmGES{ISprh>YhSkeJGxXLiUWI8?|>xe!sH<apyB3SyGI%d-pdu>2jS!}9&GlQ%OAmY7^3=Ei3NE^u6Z-h=KtQ2?p&}Tk>^~fCP|A@Qxu_zH+P`2SXG1NnKp`>YHU`73+U}xB=Nzcm*6jORdPZrZW4~&=9!RYZ|r#8VB~j|3x+so(Bne@-SQJfi+T!9NRUo>u1a``Tu+_!Kw?+s&)2i_(}%q-N)-r(UpXUwMpFWj=?aK_kyUSb+BzL~r9NsuTmFWK5}?J8?3Yms2_8)JsJVIG$R_(nooHX?&YfmR)Cjz=n4Z%!4#IveBq|1?IwtOyfKi?rC##PN$Qv*;zi=c4<t%e)-s=UVMTf^_GlZ51jzYExTLUy})uOllm{G+c871o?xFLKcK_>#SVDs_4>81Wb+X=9#8+fiGVf>j@E=MRFo1k73jc-S}@3ZfLAfxPji;n?qD1fG%>T9QJPYdi9O|OsQcaK|Ewbx9OoJf-N>qs}>0UCI24iVLj?AAvCXZJ=>3gGD)^5OsY6y%eKO+>JA<_^0hvwD0w=Eb&W1i6{mQYL;?IHSKFd{qlqz1{*H_VNazUw`C!!;4x2V{=8a0wrI|2z!xTOA)~V?IqrFc#_M2z*H$#g{$+eHitZIoV`eMuE{%)OXy5K+n_lASpO#sN(s7A_ud6!wS{0uplv-}%WM3jlo%*qw3TNo;>t9^#P3C*Cprd4%t?gwEo>!?PLj%qk!GHy^K@!d8&O2edYAHFcqdsNBRc@>Edix98-Hhx`PPQIx*pDMRg{?mYT!!^6}O6E10idaO+P}yUn)%#LYryP<pzrzcLvNN*QUQ0gzVi3SD|C?D18>ownQXF^1DIf8PP6T4@&!vl46reh+Msh;q_dwL(?~d?zhkm6_jGy&NrxqLb~tR3gK#m|3*W4gpAab2#?c5V&|<(fZD|94-TAXy=1R<vp$Ay{kTNs=rtrvT<uF12P&wd*<4_I$NxsFh81~?3Ys1b`nIQ2uRZP*a?*$3nXX=>Sqdab48g$Kk-D52V$%qJlt<6;PvMpDXd*A?01#j9y0QmdBB4gr{e8<?hUk@ull~@Jq2rYxuhJpp8`(kYc_HAA6VyTH)z4^)8$Fsu&J=&!!h=rrMFC$cKPEu*p}F8v5$38Di=7u)KhF-|NwRf`k%KY}Z7-qq^GZA2^y{cC2p(jP{j0`1>4lM(vflmjAqo25hA#-<{yO{i%Z7qKF6hk0pr=l5My&wpi2Sd9rDaFeMz5y*U-0t9L+gX|Nvrt?-SwC-i~?%dCc{l+>X%sCAo8d)_W+sev-y~bJJ4VbLI@L%sD0m=I6jN10m(3>N$rR*`GXDYSKHJZ0rlYpR!Zfg5VFK`LlaNf@a8AQYXuC3AVg3(xM`T(cKA$}^xyCP$iFthJZp^YWAVg!P-13NNTx_Zlow&qd#mvz;@g>aE!S4Oe<je;r*Yq&0fvN`-8P?bK+zhaYvDf+nAhVn!pk#C4EkhiK1s?ae`kn41;%M|eU)v*6+&XIARhQ2bswIN20IzuoS?#<J9%edBlajqU9CrCmxzf!P*UYQCo%ApkSFi2TmKqBmq2LBR=*NgMYz&8e#zxEv<7@%d8076Mc5*4iYZ7c$(sUQk0n}>CGhKsg>NA4e&?IGQ3y#;NCVnK@6G~xkhoZHwQQ=|^_l)1AEe~=qER@NnaATuA`3D7QL3bUphMvN_(_Bm#M%q1>g+}l5q-d4M?3Fzot!SB%8>L{K5Zs`{l(i`iWt&uc9gzFM50jpzU{lpPHkEJq~Qcg%LM(yu~LKO?oABzRC^2+!|{Ai0C`I6y)0V$z<$ZPlINK2sN!u#s*5YWC<Uq6+t~r?Ejs76j@=2TyS%o&9+-7Lg4{4G5n4`Cy-V=w%k%V~a=DR8afY7H6|pv0a7I!brdq+|vlrG9fmaJi8bn|g-~7h!1Z<2JVxrY#X{{qsr>SP=l%-`A_y|E&laCZ?<)sAjq8v-OeN|YzXj|f-N9kbNpo8NlsC7f<xqps_?dT>I5~Fq>qUptG;OlI%%jF{&$QvcJIhOBl+i60S1}7lBv+onZU8QZDWEm=r-eL-6G|7d^93>EZ4gu>=2|HAH8ov)ePt{s>dVi8@C-=F9CD^Iwx$$y6+ZZgnO<OrRE+7so;!E&)qb0}?=ph9neZMsT^yXuodfe-T)46q>+;{=st9&aCXwArY8X=2xN%+vM2XYNeK~XtaJD2rwz)e+<drA+TJ0UBa`j^YrRUTv;3M0D7c5=<7pzK`r%i@W^rRD?PY+6XOwi@(i`sqqc4D=K}c}Y4A#u@ZY*P%uoLnhHXf9@jd=$jrCu?+4?PdAAb*ozoH+!710;83$^hjb5jIW#Hb#^iBRvK=o4c&aqh{QJ~kDlvE_-1(|9Rc{;PKVdNlL2M&IfL`<nuOjSSd@7BR$D$wJR{S-lv@EaJ28cCj@$dUB4|8Ug+&5y;%mri?3~=~sqQfpHZ+s%<t)@pnpRJN~0cVSJbiJq1maJ{*S1{@3#PHR+&_PoSc(?nH8hq_{foD{T+_!LMd<cdV`B`C1<IGBCk6eVD_LuNlW0PH#E@~S^11bj?VHYcTCmU-sgU4dgi>58URqkOPNidnBGtPaDdF59)ZeKEG?y9`l`fg8I=;z3o$Z5mU_Qq+^Ru*#)3vCcM8rT7<L0nIdgs23GEN)AYJ5B0TVYlmLx%k<)!BlMjn!QeIp0l^mCx{5bUb_>+{&Qu+drz6TIbL5%F~*|fAu=_D%X<}@hn<f}{Uc(e@3c0CYK_2pOMP22Ea%2n3eS|cm{VlT<Kx(3sl<!+^gdls+0hBv4B0>wJe)1B{47=viKGQe{L0q|)8D1BmkK@_RG3FPVXdCZYsCms<Qx?Om%mza#ltD}A(bSoXM0pGX}rm8wGLW<;AOLAR4%<Pl?7<IL3lW3EB#~MrbHZMPEvu3r!q8dwx5`<r8*W(g%SmeqhowN<1lZuA$FQ0cc$Ny8&RLBVQ_R3s=|!K()d0Ofc7|y`VgF&xht&rS+E6vc*ZVKL0gY$;<z1rk`kq9Y}ksL)_+jk<x`A{kFPzeA1fh1Xn7}rr7N@V;zx94CPI$t`k3b7aHg-HAopMQpnzfsPpX%WWOz0I%Q)PPpyNekYCA@u<wR>VBHJ!S43CYCA(2~MK-FhpeHh>yq92w;tSwu;%CYi@;+=?;WCdLycd_i0^qvo@hR~;nVjVI_A52xrmYwoI<Jo5QE*Q_>K-j%dt7-DN^747Y>YHYCsuJrxt_-f7GRaOl0XDH66{cjW_)56<#X*98bpxLCNV}AeP}Fw>Ooo4dt{?QHStd~!5>@p=3me6=2`|G1A*So7{G%1L8a!W$LGs74qTb@{awF;RMi*l6)M6RT%$N5dqWtoo6!$NJM?)b!l-R?2My4sn%;jKZ_`0L%Zhiuo;oJcNjC8!Bn`$<B5(~SiR@$p2F+5^!HIe@OW|sy^u;naL6ktC{5ko5VZm{h&ISefTfV$r%TE64F{XzDTzwbq6Aq%J))hHE8xn*Khy51Ym`?|Qv<a7qe=@xCk4n#wz;W{(+Sw&?k{+UyV<3K6`31s6^Owu8LWhPn`m$Y70v+Ir3$TCv8cnZOAjq(?57q^HOo7X=4CW|s^;Ae7AA!44%`|Jswfh|>z+m*SvJ@EU7PH>l!D-v|IuYG6Rz&S+eeSY7pS>=OqnD8CPOr0Xx3?=y7EP<hgm?)2VhXP8`haVymTaL~c*H+f`Qtl{h`dveGH36gb;X2=QD|wL*<r&dWYYs=UN!)<&`C4_UqiI+wP~XTPW2VT*NplTGH`@Bm_vRuDzInEAXzyH1Ph*-Z_1R^9?AXM{T^Je$<1T@IZ`06iwEOSs(cAdRq30CEXiW0MTB+gOKVK^myNjjL!BA|Y2UP3Q(0Xdkl~WO{I}ctDZUvNvlaae{xV(kpKQdc!a@RQw4i5HioyTK@3H$(_N}!e+K@B_2_&0dA45ol58oGYsedPlLcr8>Scp#~U_X)NuE2^mg&AZtWXh{OZjihXMhOVK)z}XMp^lh(et^5K7&7#$^)A6G!8F=&~FN8tPi+TQ@e|?0(nFUJANqED)j>nD14~2Gq=tkmyg&X~}{Eslz)3BfwRS+A*H*CurW%wu5mYm)YJk#1_^!%i5XMQq0e}P<pgmf28$CFU?rsh#1ghUq^WySg+$+5X@yKEpD=rBCAd@>TQbdvt<qu2*hh*Xn2zGvm<`#J!6z97*SnuuQOQDd&4V>;W9dgp$ZIE~33D_(vkFC*~2-D3KO`NzH}i3bOJ+?#X1g!e8=X(=Nj+uS~T-Vs(!MPE3ypi$HpKN<Tdrvap3g?KvaDA&<sD5&<xSefehPJUY2mZGKlm1gtck$@R5K2{f9YR9&pyuwEqjU+ijzu<2K8g^^w3)!GXq$RN4eH8XMLZMrZs{Rjw6+sNmyvZp2mF!mFV@2~Y2m3JN#zKc`O~k)}$>??gi>!Q~%*U!~*6-xK1@{LzGFC}^{CrRqn4I0{VCYkwCEBIs2v%Lfv)j%>(KMM|ZhCoNn@|r!gs(gJP-87e2LM$Tu^$}<9(zb6SY`}l+^{h!(Py5_@yRffDZu;ihiP7^pBPzMx&2vVfEQjTqL1IlZzNIIQbKNKfp)DHVxg(v{q?D{sSR6PagF`>JvVW@`*QPMibPrQT-LBH0Egd>nl+jL003_4B1sFIZ=AL(D{Jn&wY~q1Z-#Xr&yX+>1$k8pGfn%$iLTFm%~kHd#_}60r&8d$25wVAap*qnU?!}&C{l3h!?3ZJzVO%7p1eob*U2QWx+)*!NEoMSU;;Po^=m-Sp<cD;7qP9J3YUG63VVb9?27jm_O<p$#Pb~J@q`e?iFxCVYjJApeP?Y->cHz$#6JwxB0322y|Xdh7L58e&$v+TI`sy!t;f8-F)#twR&qv`+8sU@r}$f?Cr#cwhuul`F$o|dC~80@Ms)hNQxoR7?+Spl)vD()J?2-RpSW?4$V#~dKeL9cPuzmh@bfnDrS1j+paY7}*FrCR2&#w-5v%ZRTMkiY$Uz1L7hZOa;~Zg=khaMzP4peUKgV>^j6&DR6l6bP$WbLZebdk7zkCbGA6#KFDaTV?><0mCFNW;LJ^p-VZ7l$sN5QxxUU$SMf>E-FBw1x^NiGkaqxtlUvknN|5fmn=Vbm&!k0^m2nkn3_o=E)xr2~kfq&ySNZ!~!GdnT|P)c$c`oF!1rM3G*gKfl6%v#;Mz-~lEc5Hc|6pGu4iHn86yWmH))V(=rBb0{Ado3v<4Bc0ICOa0eGMpO;e_i_L`a}AW|-dch8zXghM?$()0jas=Wf}-|!B0Y@fUx`wk;tJz6tAT)s7WLx%+DN_;U$$a?uWsM8cf6(6q_Z;mrsZDYbr!CbD=eLlygJS<UE4U!qltZiG=~ME$AVRNw3F-_mwpY{O48TFQPgu#F~oRH99L~jPO(zFG)MqgK4noe-97~nMEW!5#!+zsAe)|p?QB5NQnTkWQ(Ioll6Q)nA7?fzBhXU3B%Sm?dxPmIWpp3*_}n7p5s?t3NE`Gu8~b;|y)8F;r0JMz+R}42W#0QjB~`(2I_^G<H+6P-^eM<njcz?$t5eXWuY|ctS>2;SHhDudHH%>?DVxh6x-AJLh63eR+T_#slwW8Yl99?Rj94^NQdWKb0x(VIpFU@si$om(*9|*a(A;0($1F?T^w{>XhLF1C<t+<FnV-@Nk|%cA?g_l?8iACT<ITg`Plk%Ybgp5HR}%?p$(Y|JX9!e<MhR;~q=~tZJd}k%{glFL{)^W98rs1bsMX~uSIE*5(SUnD_*B!cYk@-SnL*X5{1&<*M<SP{!4zUaoPp&xn!yWec#1Z^g)av<&SrV_(cKuy7UfGZgu2Zq78@Lj$-J%SoTkj+RH4w?RPt65w_&#xi>(t`xzElILI*mO@0%Qd&Xr4wLSu_uVjS=Z_WNRHy0k>!ze~P<G6HaU_LGvK4#-UVFdiWP$ofLLZcu-(eLQxOhl~3(tc+f{N)2S^LTV^=V#6ieKCIfh<-C!%OnyIg8<C!M;I2kdn5YVLO*=?Ic`384OibE4(Lt#<%0?Q{@Puy%67W<}^7+O6YV`n&ADv4t{gR?1?r;lN^a2Kog%hRq?g_ui(hVi3um)TOHut^^_{;HO0W%B&A~tT7Ab_}Q+k#rdD!k7H1`{nx{YV(xt?sOHM7*Ds?5Q{&?$DHf@g06-Hes1)*u=pPcj72Ss1;oDRd47>P8DFRYG~H(O7WH0tZT5MG>74+FYdwUpeB?{E(zlCFbk`4yR3^-$9y|w*2Q6x{O)lvR%i@PldZ$HcD)XLC01fnM~>B%`kquh80cTkHD;51ux9#_`jn0f2dmObwxVcp)lDe^#PKty+@K#10!S{lZdows?}3C~rrC4|Q?>$-1cX2oyf(N{3oBO?zyVj8_!$!!CYuR_UBM9fNEK?NIN7HXp4j&vE8q=ktwCetUW1stuPeo&WjJEiK~0{gS2-sj)eDlUFNJy=j!d<$yN~AkNBWSqqp>QiWhio7R-QvxRyU{`ns9e!^l-O{G)aCemhge^l+CShVbNFju381%P88J0tAvC~gwpcImG$_C(Vhe6PWOF{KF=e_4^jD?JYTPw_koQ%6szl^w4!--PA<M4+7iiidz@i8dPiu%j9wG%u*5lz<m&hYN2j>++f7Pm4S@(<;{HDle%XO+4^DAZ;VQrf^UYEdUS=D6kA{l4V-r*p(iIhRL0*9qANKM|qs1r;<@+;%bM#?P`eW$p1!*;)wmVLKH5D9UTnjn)UkSQ?_g{Y7n<`as*fZ^F;L_+NFD-6|>)e4LEH*KN$EMZt*_q4@^q6wMI0;fxGtiUZhxf!){&m(ubW~@#I$tGVNX8|UssITU@oz_UyX(}Y(R*qT_Ewh_tc;Q}_+e?M5kJI>OsQw-@Gvi9M>s3$nIceTtH*?^tJ`Twnx?cI*h7SYstP6K`YO3ydH=+9wCm^%|0J$NmXD589_mnrwaYQBoDGfhJUQ%tLjgRkJ_M=<ZY?i43XxE`EanLqh3S2$EICBXG|_tj7FKDjV#Ed~Irsq*2;~pxttU0dpyY)Jz3YYz91-H(_JEK;_YEMLcV&FAHn8KKC=1+4vWU49-sXIKV>6BGl#ASavd4K}ytrvK2tXJwFiInNgfPbol-$cs{OF~-%$*4BQZ<2z|8*!%Q}(Bbs`y_e)Y$HBHiK)Vw&IvFwao0>7sg==6@@gR0$QdXYY9foPI&kDP;Yao#wd@A`#DO;+plcFZw0e`^R;wpM#<=IcrTPdxDFdtE6_1rB8TD*fbdx-Dr7Tq>58&Ma9a4QFDV>cW=mJT*xBzmwUdXgX4j|%wv8;$1Eg?r37NSi0lDJ-Loc(XP<Ni<s;A;pyMVB~YuZz6cdiYo#JOlE%~^o4Dmg~uZn&=SPv7h;L#im+sk};GvJ|f6uVMq&rv*hLIVWN#XP6;P0ce1j@D~>sE@xcGHGW4EPrlQ(i9Yk=$Bw}7{VHMe&rqz!9o7<GuRv(O0nZ+~8aKRs_WJ*M22-Vfp1)2I;ml_sqnA&9a^2j|jb-_Lj$5kH@i;2KIDi8<Ce|@NNvUzV=n-v+liQ4w;vnURjD7D2jYwmy5oH?Yp%r-r$@^qXn#~nA!qk-|1l+zZJ||YR0!=|E2@f!)kkBgy+Q<Q`2jDI}W2NLCj(!E0`uz_)J(w+<8yC#SH;TI-pvLzM4=+J5Te{YiJkeq~?Y9{thn{2}mu4$7kX*D;sTLnYl!E^lGAMO_PrS(ochViuCNlbY(IC^_K`>xS(&XrQ%L^LZ0vZ1X)>V#^T$N7LoDPU^ORkLB@~qjKx9un=--`%b_)LBnjzf<eiprzg0*R%p^)1W<h=htBIm@pRc#}`Zro?ycAm`eVRL$W2ANM7Lh^RJ2Qn>oO_wLnYT5E=SS^srt6xAW6+Oy?XAyeTIu?`{b{^g-*5*~NjnN9{lSC3sOx6p%$1XFkedSr1J?oCEm!d`1f#4c&hJ+=exLzP;A7g=+W7`<QX1wy+9hL;@?J3G()5N^Jr`G`hgVAB+qtb&=+jvGqij6rSTtt?cToLwOIA7cMW3{OfJ_zd0|Sd!xyg(F4lbh~;P#6ACPj#$pdo>KujflnkBP0nXWKt8j^6fCR_f=n{sJ%1h4h?s$>Eyxe9xzHhjuWr;A&HpG?4pb$}NaLD6|2cnD?m18W@D0jCB2XL8;CJaDtbc<l+@R6U-djOg;nLHI>~!MgT^Ue<j<otm-C~7R2x<yLpR;B}(vF2fWV`T@wP~AgeiUWhc^R-3^E91B1MhrHNf#&HH2drm4t(Kx46lsu{}xpZdYwdfkSiB>Xf-S@Hx`;!*ho2}uK6}Q#;bGyh6_H6e>VpPDmA4Ia6x0gEZ`Q`eKJEe&eOA<*~4515H$D2V`JW`+sMV0-_5pr%;a-}1D`L#7Qiy?<~<3`BB)SM)U^XDIWtu@{GB{Q37eV^K0Nuu1O;E<1>*7&T1!cS_<LSQox7ox1g~XS%iHEo-)+Z)TfcFoLXjkXgQ4f*<W8+$JMCYQN|{wv#dfg$Q7987Rl;-x<e!WkKvUd6u*@~RWZxyOS}s^$Ae5$Mnm^o}?Dm3m2k*Ig$Npd?QX30eEkygf#1Q2?K?w1udhn_)N*y7(5p<%kJAMke3k#@zd}vmdlK}}rx@HvMp8>J*meS1P%nGOLE(o!^A|Q|>MtM_FP{|U{O^s!(5?#1vz4J2tN9v5UQWk1fnxuX|=z~qkxweJ*{Gi<yq({(O4}IIyi`T`;uC*ZY`KPWK?ZZNyx)#*7YHtQ$DX+`x$x!p8JMPJs;$3w@$p=npU$2u#7Q3fUJ5dzk++o=g`+mM;_ieR)sDpy^fiAb3gs)(T_Pj6&N%^jx%h#%>Jau+NDqhO+**um(7uE3e;B~~%8dFCT*QdT3mD1_B9qMiZy++a(%@x(4-;S6Gsl8N#!J7Ksi0b`~!eA)~2OQ6I-U>n&pX5vo9|G;{n$REP$8I(BZ-Th4cBmxDCm=75eOqj4(&{8cC!rK|GY!sPb`ap{<1=U-_ZeVXx<ue;`WTBy3xLG`^=(#*ZAiWIFoziFXM3ze;;PA5CbuTI_ldw2<%$ve0H1-H*?*pLFg)$_Ft*2<!djkWcyK7`Oe-HM9$KI~pTnewiT{?Tzl<bL3Lx~ppx>Wj2P|FbqG}kpA0Bx(ceQ#yd6A$iZw97Ia8I4do*c4=<sBASVq9=%_*~jo>J29%FS&aYpvDQEQ1C_&i6cz~i~;0}s!UiPQM;qNguJK{s-GnroSw3l*7P}4!0^Wc7X7p5Hb~lPOW_JtIN1SDR0=)*SdUHO5r}LPG{quWEV|Qirz%3TV!q4(s6VG3T!p8p9l?rO3BTNQ@pRn?)UX(TtSvdNDnSC>M{h+opJXAQtc`bPUlbXWF_K3om`Ax!hoDSKf#OlsRnl_$8x{<YO9-?MZT*SvDpBk$5HlRZr7;y@HtgB)z&27$(N7t#s`ED?fUyw)0u^kdh+Nh6L5gG`lzAxNpE3zd2o@tyI_cxw2zQ*;8qpU)l``=&x3GLDFNn_$O8zvE4_e^-OI<;A_J>*=DoHN%|NPt^Vuo1B=8YD(ipF0#U@av(O3+aFQ~mRxg=NC?sgp-`7Ss_!nXCe+kTa&X(iI{Pw;_2%{2dq?t=>xNm*I7}uwp`+Q$GPd!X!ix{R9`aV^U!RQGPkeWT}&G)=S^CcY>uBqqE8qc?U_A%7%+own7~(+8*V+02sxCp?FK`x1~NwUJQ7D`LE*ui3u$BeFubd{^vnR9&U7L?fIr6W@?-jlQld4bS_ZeaE{4BE<PAJ=c+B+PU$$`&w@xq8)k?rGrtA~&s0^!YR(5!5U$QqV)+Lr6Y-0INo>3oyfMJ=(kBiWqCK@Qq5hjSFPcwln@OGo#Laz>3_FA(!G^bU;t}R%Qc&CFs2D?=T<|XsDFZUO6M|!6dpmnd`u-j7{YF)``Eek^i5U@-9qz$j;%-pFz_|cH8>uym4<MLDD;1Fa6}`Yi+okv5l*`NW4vPdNL5W9UJs3so-85xGT^g6mTx2@pf~ESLlzgual>;u-a4Y*&Mq@}1`8DjdW}PL#vVJQ62*o`WiN4TkH2qLXWADwG_<ZgQ7%B6OX1ja5r<j8M3~TUUEa$Xg=HUYi=&9bbst~sG%w2r(Z!HT4@h<=J7nD7nw&x7k<;%=2$R3+GW_n8Jy7>{Og=w36QQvdSJl)>%PNy}RW367_w-mLE(*Q-DN(5oiGoI~^cBCxVyw-Ci<h`ZlQUTK+b@<Rg#)u1{C<NbX1<u_o@7p-!XJ|GpFA&nbJgrb(9LPys!73zwwf4(DG2h4<gfB2{?d>hRxg?2wVIaSH+fK4TL|2s?3k~ich^)d4Mf0*&)M?W`qYxaT$G(>$s`G^Z;2JWD?Qp_&hdtNv-VX;AQ+@CU9re>0u*y#&nU#BrTubpuyn+WzM>Zp=wF{XIhd9nn+ReJ(Zz8}TgGl6IQmSh|PH?Ze;$QO=vq{5+PHMD^x3m{!m2|%OT9I@dt3M=fT05jx#oBB^vZ*Q~(bkBE%(L<V%%D$Fu`~4N?DYaSXOW+xPXE;9>xZw-W?(fsNIk@8^2*6^DLW&yQMUA9v(r*SIKiOt$pc%E4EuU!scr>)tPP8-Rh#%brF*3f=s8RsFyZk+>ub04Wt(8bOeCK<CYHAQ*$z|nzGgQ^7;cO|Q*<nBTQ0&EpOu$lgZ6dim^c)9p|VtWjg2^uaW)(2gsgbJV0=9&o-g`Rjx`kUgmFELEKE(mRkiBc{^9TKq6q9pw&MJ-bbGf_Jroh<5=}mpC<g_LJh7;E;YKbaBa976$G$>$;d()HXsnRD{9mH$&5eR1dUR3|5~h%ztfxKuqY=#vg00M3(#r0|KVg3o_+y9OKMdR`N$AA=Whm4tgEmKLQY|YziV;w$e3TULLGpu~S0L^MZ-Kj%q$z&;qhB|1W~YZ|I1E$f{0%B>5)!KXmAbi57FyAjC3>`rPAkk?-<Zx68fAT#gtgBEMo(Xqt|4uM-nVrB6lxjJ%LHI4pWsNNFTsj-VYyKO_Xd#ia{~Wy1aSLVeM$ozMSxJ&g;Ix%vIICH)h~fzg%g0!7%?Z>MHCD%%yH%Vm6{&IUu)!6v<>gTj^v73MHg!cS>y?!h|>Vr)yx<~rjiI>nn)8yud&{S0pR_>+<Ei`!jP}Wn(GyEO)Q_B|F+{zAiO-FDeU&beicmLAx$%U3E}uQzYhwOd1tih>ZE3~Soelma%1M(M0}jE?Sq?ANBg`4VMU#<0UHgDSSc7dER7ErE8@-ouCvrNsu69Fc>QMyzSDe(N)BM6St*+p<}Cau-m+glTf~g$B+J$jP?A{fS4-oAvy|cu#jeq6@3v5*tg^FVX!tc9qb|<1o>h@C7KUr>!WnH(XfA6=`&Vje8&^*aUjxst`k!y|be0r`(DE@!*Yf7W2j>$LWaxPT0RQ@(Q?sliPSovB;YMY9XQUVQ724!+eIV>-4Y;ac#RbsHvhI(SF=ohw!?Ti)_PsbEY3^3r-^I^QgH@$0#^^Q(Vzu?>i2Vl0PFi`>UKpLeRS!Fd;>gG&f`7{jb}$zb=3kx-=^wwN1s{^HNLw30U1Be}g9aY$2EIzJ#sx6M{jP9$M3MKtd^&s-sNW`RZthkj$@t2&T0&I4^qG&R3-@!W`{tmE(5<Ba1j_-2Y3^1LwNRPTU3&ibXSfCEGF5P?pF}F(k-nYt>}!5qq*oIi=a_61)jQL!f!9TiXc;2JVxyT`HbWW2Z59e{&EF|pCNVS};t#WX0?Ci_Lj#M1pNvK<QIc$=VOCxAzxDl1Q^HWg(gY*WSFskl-9uB>$bP@c_!C|qr{8AvV(!*X6z$*~jmIdY&mP12FPx_d$Dr3%8M^#j4LU&RzAeS(?+X&HwWtDH1c?DXvYiII|Nm#&VCW3p@Q5v(QaoFbdouo*IjY}SF`|M^Sk=pku5_TbLt#-<vfNWd-HBd<=Q|$+bomG{DQ|HdgOQu6Yx;&zPqHVt^*REuQloW~qOG{KX;lP@%in1P=Olf}EqWEb)>R`4l$R=0#jROdQ0{h37Yy2azFE(M?8F`_5J1M?3CGg~71@N3Zf+bDU6Z6B%jGx$>_vM~84DBmzWHuQZ+Uf0$urx#MgEeNZKr5-i)_cc3(xDvcK)rcVc-Ep3Eb4M=zo&(;*A*0wC43uwMc45zWfl7UKh8#v?F41*n}a}T%JgFBOa(?zdH32aiSbgaBCca!^flT=j}>P<j+NnBdLNcmQG^<Nw0ohH>zXwx9`Pm>n`HzRbEKT;*y5Uq?e7DdP8D<&?ats`_HW-iU+#^{J_QtgV1HsO`-7z?TSG}A}u@wqx7p16#PdvM0fekGI@J?SDnK86*CKAT7P8$w5=BMf2!8^jz9*_1dZ|0etnr7I*~5+<hUP%V<;|1cL?Cbp5;)~;R+^;`#}(Ss-7CRkDkGC*yz_8T%Mqpz4T`HXob}|p#OOFW0~F6knGL7#u6HZBa_d8P5_UXzjIp=i3!-4$TF{Wyj18r-x8NJ{aCIl56Q!|Hi!")
-        _0xD = bytes([_b ^ _0xK[_i % len(_0xK)] for _i, _b in enumerate(_0xP)])
-        _0xR = zlib.decompress(_0xD)
-        _0xC = marshal.loads(_0xR)
-        exec(_0xC, globals())
-    except Exception as _err:
-        print("[!] Security Integrity Check Failed on bbmkts_runner:", _err, file=sys.stderr)
-        sys.exit(1)
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+TEMP_DIR = os.path.join(ROOT_DIR, "data", "temp")
+os.makedirs(TEMP_DIR, exist_ok=True)
+DEST_FILE = os.path.join(ROOT_DIR, "destination_url.txt")
+CODE_FILE = os.path.join(ROOT_DIR, "extracted_code.txt")
+
+ocr_engine = None
+
+def get_ocr():
+    global ocr_engine
+    if ocr_engine is None:
+        ocr_engine = RapidOCR()
+    return ocr_engine
+
+def run(target_link: str = None, headless: bool = None):
+    if not target_link:
+        target_link = sys.argv[1].strip() if len(sys.argv) > 1 and sys.argv[1].startswith("http") else "https://bbmkts.com/go/3p82s"
+    if headless is None:
+        headless = "--headless" in sys.argv or "-h" in sys.argv
+
+    final_destination = None
+
+    with sync_playwright() as p:
+        log("[1/4] Khoi dong trinh duyet Chromium...")
+        browser = p.chromium.launch(headless=headless)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 800}
+        )
+
+        # Chan cac script tracker, chan incognito popup
+        context.route("**/api.js*", lambda r: r.abort())
+        context.route("**/apiip.js*", lambda r: r.abort())
+        context.route("**/sweetalert2*", lambda r: r.abort())
+        context.route("**/firebase*", lambda r: r.abort())
+
+        # TAB 1: KET NOI VA PHAN TICH TRANG BBMKTS
+        page1 = context.new_page()
+
+        def handle_submit_response(resp):
+            nonlocal final_destination
+            if '/link/submit' in resp.url:
+                try:
+                    data = resp.json()
+                    log(f"[API] Phan hoi /link/submit: {data}")
+                    if 'url' in data and data['url']:
+                        final_destination = data['url']
+                except Exception:
+                    pass
+
+        page1.on('response', handle_submit_response)
+
+        # Vong lap thu nhiem vu (Toi da 3 lan thu/reroll)
+        final_code = None
+        for attempt in range(1, 4):
+            log(f"\n--- [LAN THU {attempt}/3] Load nhiem vu tai {target_link} ---")
+            try:
+                page1.goto(target_link, wait_until="domcontentloaded", timeout=45000)
+            except Exception as e:
+                log(f"[TAB 1] Warning on load: {e}")
+
+            time.sleep(2)
+            html1 = page1.content()
+            log(f"[TAB 1] Da tai DOM ({len(html1)} bytes).")
+
+            final_code = None
+
+            # -------------------------------------------------------------
+            # KIEM TRA CHIEN DICH LOAI B (CANVAS / MA TRUC TIEP / ANH STATIC)
+            # -------------------------------------------------------------
+            lower_html = html1.lower()
+            if any(k in lower_html for k in ['không phải chờ 200', 'không phải code chờ giây', 'tra...25', 'he thong seo']):
+                final_code = "trafficseo2025"
+                log(f"[NHAN DIEN HEURISTIC] Phat hien chien dich SEO Static Guide! Ma mac dinh: >>> {final_code} <<<")
+
+            canvas_script = None
+            for s in re.findall(r'<script[^>]*>(.*?)</script>', html1, re.S):
+                if 'imgCanvas' in s or 'canvas' in s:
+                    canvas_script = s
+                    break
+
+            if not final_code and canvas_script:
+                m_img = re.search(r'[\'"](https?://[^\'"]*uploads/[^\'"]+)[\'"]', canvas_script)
+                if not m_img:
+                    m_img = re.search(r'[\'"](/uploads/[^\'"]+)[\'"]', canvas_script)
+                
+                if m_img:
+                    img_u = m_img.group(1)
+                    if not img_u.startswith('http'):
+                        img_u = 'https://bbmkts.com' + img_u
+                    
+                    tmp_img = os.path.join(TEMP_DIR, "canvas_test.png")
+                    try:
+                        urllib.request.urlretrieve(img_u, tmp_img)
+                        from PIL import Image
+                        im = Image.open(tmp_img)
+                        lines, _ = get_ocr()(tmp_img)
+                        all_text = ' '.join([l[1] for l in (lines or [])])
+                        log(f"[OCR CANVAS] {all_text}")
+
+                        if 'Tra' in all_text and '25' in all_text:
+                            final_code = "trafficseo2025"
+                            log(f"[NHAN DIEN] Chien dich Dang anh Huong dan SEO! Ma mac dinh: >>> {final_code} <<<")
+                        elif im.size[0] < 500 and im.size[1] < 150:
+                            if lines:
+                                sorted_lines = sorted(lines, key=lambda x: x[0][0][0])
+                                code_cand = re.sub(r'[^0-9a-zA-Z]', '', ''.join([l[1] for l in sorted_lines]))
+                                if 5 <= len(code_cand) <= 15 and code_cand.isdigit():
+                                    final_code = code_cand
+                                    log(f"[NHAN DIEN] Chien dich Co san ma tren anh! Ma: >>> {final_code} <<<")
+                    except Exception as e:
+                        log(f"[WARN] Loi xu ly anh canvas: {e}")
+
+            # Kiem tra tat ca anh trong uploads/ neu van chua tim ra ma
+            if not final_code:
+                upload_imgs = re.findall(r'https?://[^\s"\'<>]+/uploads/[^\s"\'<>]+\.(?:png|jpg|jpeg|webp)', html1)
+                for img_u in upload_imgs:
+                    if 'icon' in img_u.lower() or 'logo' in img_u.lower():
+                        continue
+                    tmp_img = os.path.join(TEMP_DIR, "guide_detect_" + os.path.basename(img_u.split('?')[0]))
+                    try:
+                        urllib.request.urlretrieve(img_u, tmp_img)
+                        lines, _ = get_ocr()(tmp_img)
+                        all_text = ' '.join([l[1] for l in (lines or [])])
+                        if 'Tra' in all_text and '25' in all_text:
+                            final_code = "trafficseo2025"
+                            log(f"[NHAN DIEN OCR UPLOAD] Anh {os.path.basename(img_u)} chua ma SEO! >>> {final_code} <<<")
+                            break
+                        elif 'vietnam' in all_text.lower():
+                            final_code = "vietnam"
+                            log(f"[NHAN DIEN OCR UPLOAD] Anh {os.path.basename(img_u)} chua ma VietNam! >>> {final_code} <<<")
+                            break
+                    except Exception as e:
+                        pass
+
+            # -------------------------------------------------------------
+            # KIEM TRA CHIEN DICH LOAI A (LINK NGOAI / WEBSITE DOI TAC)
+            # -------------------------------------------------------------
+            if not final_code:
+                log("[NHAN DIEN] Chien dich Website Doi tac ngoai (Countdown Button)!")
+                
+                # Tim anh huong dan Buoc 3
+                guide_url = "https://bbmkts.com/uploads/img_6a9a2b1a162aa2_23092712.jpg"
+                m_guide = re.search(r'Bước\s*3:.*?<img[^>]+src=[\'"]([^\'"]+uploads/[^\'"]+)[\'"]', html1, re.S | re.I)
+                if m_guide:
+                    u = m_guide.group(1)
+                    guide_url = u if u.startswith('http') else 'https://bbmkts.com/' + u.lstrip('/')
+                else:
+                    all_imgs = re.findall(r'https?://bbmkts\.com/uploads/img_[^"\'\s>]+', html1)
+                    if all_imgs:
+                        guide_url = all_imgs[0]
+
+                log(f"[TAB 1] Anh huong dan tim trang: {guide_url}")
+                tmp_guide = os.path.join(TEMP_DIR, "guide_step3.jpg")
+                try:
+                    urllib.request.urlretrieve(guide_url, tmp_guide)
+                except Exception:
+                    pass
+
+                target_url = None
+
+                # 1. Kiem tra window.taskConfig
+                try:
+                    req_domains = page1.evaluate("() => window.taskConfig && window.taskConfig.requiredDomains ? window.taskConfig.requiredDomains : null")
+                    if req_domains and len(req_domains) > 0:
+                        target_url = f"https://{req_domains[0]}/"
+                        log(f"[CONFIG] Phat hien requiredDomains tu taskConfig: {target_url}")
+                except Exception:
+                    pass
+
+                # 2. Phat hien Red Bounding Box
+                if not target_url:
+                    try:
+                        from PIL import Image
+                        import numpy as np
+                        im_guide = Image.open(tmp_guide).convert('RGB')
+                        arr = np.array(im_guide)
+                        red_mask = (arr[:, :, 0] > 180) & (arr[:, :, 1] < 60) & (arr[:, :, 2] < 60)
+                        y_indices, x_indices = np.where(red_mask)
+                        h_threshold = int(arr.shape[0] * 0.3)
+                        mask_lower = y_indices > h_threshold
+                        y_low = y_indices[mask_lower]
+                        x_low = x_indices[mask_lower]
+                        if len(y_low) > 0:
+                            min_y, max_y = y_low.min(), y_low.max()
+                            min_x, max_x = x_low.min(), x_low.max()
+                            crop_im = im_guide.crop((min_x, min_y, max_x, max_y))
+                            tmp_crop = os.path.join(TEMP_DIR, "crop_target.jpg")
+                            crop_im.save(tmp_crop)
+                            lines_crop, _ = get_ocr()(tmp_crop)
+                            texts_crop = [l[1] for l in (lines_crop or [])]
+                            log(f"[OCR RED BOX] {' | '.join(texts_crop)}")
+                            for t in texts_crop:
+                                m_u = re.search(r'https?://([a-zA-Z0-9.-]+\.(?:com|vn|net|org|edu|gov))[>/]([a-zA-Z0-9._/-]+)', t)
+                                if m_u:
+                                    dom = m_u.group(1).lower().strip('.')
+                                    if not any(k in dom for k in ['google', 'youtube', 'facebook', 'bbmkts', 'imgur', 'aimos']):
+                                        slug = m_u.group(2).strip('/')
+                                        target_url = f"https://{dom}/{slug}/"
+                                        break
+                            if not target_url:
+                                for t in texts_crop:
+                                    m_d = re.search(r'https?://([a-zA-Z0-9.-]+\.(?:com|vn|net|org|edu|gov))', t) or re.search(r'([a-zA-Z0-9.-]+\.(?:com|vn|net|org|edu|gov))', t)
+                                    if m_d:
+                                        dom = m_d.group(1).lower().strip('.')
+                                        if not any(k in dom for k in ['google', 'youtube', 'facebook', 'bbmkts', 'imgur', 'aimos']):
+                                            target_url = f"https://{dom}/"
+                                            break
+                    except Exception as e:
+                        log(f"[WARN] Loi red-box detection: {e}")
+
+                # 3. Fallback OCR full anh
+                if not target_url:
+                    try:
+                        lines, _ = get_ocr()(tmp_guide)
+                        texts = [l[1] for l in (lines or [])]
+                        for t in texts:
+                            m_u = re.search(r'https?://([a-zA-Z0-9.-]+\.(?:com|vn|net|org|edu|gov))[>/]([a-zA-Z0-9._/-]+)', t)
+                            if m_u:
+                                dom = m_u.group(1).lower().strip('.')
+                                if not any(k in dom for k in ['google', 'youtube', 'facebook', 'bbmkts', 'imgur', 'aimos']):
+                                    slug = m_u.group(2).strip('/')
+                                    target_url = f"https://{dom}/{slug}/"
+                                    break
+                        if not target_url:
+                            for t in texts:
+                                m_d = re.search(r'https?://([a-zA-Z0-9.-]+\.(?:com|vn|net|org|edu|gov))', t) or re.search(r'([a-zA-Z0-9.-]+\.(?:com|vn|net|org|edu|gov))', t)
+                                if m_d:
+                                    dom = m_d.group(1).lower().strip('.')
+                                    if not any(k in dom for k in ['google', 'youtube', 'facebook', 'bbmkts', 'imgur', 'aimos']):
+                                        target_url = f"https://{dom}/"
+                                        break
+                    except Exception:
+                        pass
+
+                # Bang map chinh xac cac landing page co dinh
+                if target_url:
+                    if 'luxbikes.vn' in target_url and target_url.rstrip('/') == 'https://luxbikes.vn':
+                        target_url = 'https://luxbikes.vn/xe-dap-tro-luc/'
+                    elif 'namvietlift.com' in target_url and target_url.rstrip('/') == 'https://namvietlift.com':
+                        target_url = 'https://namvietlift.com/xe-nang-tay/'
+                    elif 'truongmaisaigon.vn' in target_url and target_url.rstrip('/') == 'https://truongmaisaigon.vn':
+                        target_url = 'https://truongmaisaigon.vn/ghe-xoay-van-phong/'
+                    elif 'eterra.vn' in target_url and target_url.rstrip('/') == 'https://eterra.vn':
+                        target_url = 'https://eterra.vn/tu-chau-lavabo-eterra/'
+
+                all_t = ' '.join(texts_crop if 'texts_crop' in locals() else (texts if 'texts' in locals() else [])).lower()
+                if not target_url:
+                    if 'eterra' in all_t:
+                        target_url = 'https://eterra.vn/tu-chau-lavabo-eterra/'
+                    elif 'bulong' in all_t or 'hoangha' in all_t:
+                        target_url = 'https://bulonghoangha.com/'
+                    elif 'truongmai' in all_t:
+                        target_url = 'https://truongmaisaigon.vn/ghe-xoay-van-phong/'
+                    elif 'namviet' in all_t:
+                        target_url = 'https://namvietlift.com/xe-nang-tay/'
+                    elif 'luxbike' in all_t:
+                        target_url = 'https://luxbikes.vn/xe-dap-tro-luc/'
+
+                if not target_url:
+                    target_url = "https://luxbikes.vn/xe-dap-tro-luc/"
+
+                log(f"[TARGET] Website doi tac duoc xac dinh: {target_url}")
+
+                # ---------------------------------------------------------
+                # TAB 2: TRUY CAP WEB NGOAI VA DEM NGUOC
+                # ---------------------------------------------------------
+                log(f"[2/4] [TAB 2] Mo tab moi truy cap {target_url} ...")
+                page2 = context.new_page()
+
+                abx_code = None
+                def handle_abx(resp):
+                    nonlocal abx_code
+                    if any(k in resp.url for k in ['00abx', '02abx', '03abx']):
+                        try:
+                            data = resp.json()
+                            tok = data.get('token')
+                            if tok:
+                                dec = json.loads(base64.b64decode(tok.split('.')[0] + '===').decode('utf-8'))
+                                abx_code = dec.get('code')
+                                log(f"[API {resp.url.split('?')[0].split('/')[-1]}] Server tra ve ma goc: >>> {abx_code} <<<")
+                        except Exception:
+                            pass
+
+                page2.on('response', handle_abx)
+
+                # Patch script bb*.js
+                def route_bb(route):
+                    url = route.request.url
+                    resp = route.fetch()
+                    txt = resp.text()
+                    if 'bb' in url:
+                        txt = "function detectIncognito(){ return Promise.resolve({isPrivate: false}); }\n" + txt
+                        txt = txt.replace('if(_0x13d311[', 'if(false&&_0x13d311[')
+                        txt = txt.replace('function checkAdsClick(){', 'function checkAdsClick(){return false;')
+                        log(f"[PATCH] Da bypass Incognito tren script {url.split('?')[0].split('/')[-1]}!")
+                    route.fulfill(response=resp, body=txt)
+
+                page2.route(re.compile(r'bbmkts\.com/js/bb.*'), route_bb)
+
+                page2.add_init_script("""
+                    Object.defineProperty(document, 'referrer', { get: () => 'https://www.google.com/', configurable: true });
+                    Document.prototype.hasFocus = () => true;
+                    document.hasFocus = () => true;
+                    window.hasFocus = () => true;
+                    Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+                    Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+                    window.detectIncognito = async () => ({ isPrivate: false, browserName: 'Chrome' });
+                """)
+
+                try:
+                    page2.goto(target_url, referer="https://www.google.com/", wait_until="domcontentloaded", timeout=45000)
+                except Exception as e:
+                    log(f"[TAB 2] Warning on load: {e}")
+
+                time.sleep(3)
+                log("[TAB 2] Cuon trang de tim nut lay ma...")
+                page2.evaluate("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(2)
+
+                # Tim nut voi danh sach selector da dang
+                bb = None
+                selectors = [
+                    '#bb', '#bb1', '#bb2', '#00xoo', '.btn-layma',
+                    'button:has-text("LẤY MÃ")', 'a:has-text("LẤY MÃ")',
+                    '[id*="layma"]', '[class*="layma"]'
+                ]
+                for sel in selectors:
+                    try:
+                        el = page2.query_selector(sel)
+                        if el and el.is_visible():
+                            bb = el
+                            log(f"[TAB 2] Tim thay button lay ma qua selector: '{sel}'")
+                            break
+                    except Exception:
+                        pass
+
+                if not bb:
+                    log("[!] Khong tim thay button lay ma tren web doi tac nay!")
+                    page2.close()
+                    log("[RETRY] Kich hoat 'Doi tu khoa moi' tren Tab 1 de lay nhiem vu khac...")
+                    page1.bring_to_front()
+                    page1.evaluate("if (typeof confirmReload === 'function') confirmReload(); else location.reload();")
+                    time.sleep(4)
+                    continue
+
+                # Click button bat dau countdown
+                log("[TAB 2] Click button bat dau dem nguoc...")
+                bb.scroll_into_view_if_needed()
+                time.sleep(1)
+                bb.click()
+
+                for i in range(95):
+                    time.sleep(1)
+
+                    # Neu server da tra ma qua API 00abx va timer tren 60s
+                    if abx_code and i >= 60:
+                        final_code = abx_code
+                        log(f"\n==================================================")
+                        log(f"   [TAB 2] DA LAY DUOC MA (QUA API 00ABX): >>> {final_code} <<<")
+                        log(f"==================================================\n")
+                        break
+
+                    txt = bb.inner_text().strip().replace('\n', ' ')
+                    if i % 10 == 0 or 'ĐỢI' not in txt:
+                        log(f"  [Countdown {i}s] Trang thai nut: '{txt}'")
+
+                    # Kiem tra neu trang doi tac yeu cau chuyen sang Buoc 2 (2-in-1)
+                    if 'Nhấn vào đây' in txt or 'tiếp tục' in txt:
+                        link2 = page2.query_selector('a[href*="traffic="]') or bb.query_selector('a')
+                        if link2:
+                            next_u = link2.get_attribute('href')
+                            log(f"[TAB 2] Chuyen tiep sang trang Buoc 2: {next_u}")
+                            page2.goto(next_u, referer=page2.url, wait_until="domcontentloaded")
+                            time.sleep(3)
+                            page2.evaluate("window.scrollTo(0, document.body.scrollHeight);")
+                            time.sleep(2)
+                            for sel in selectors:
+                                try:
+                                    el = page2.query_selector(sel)
+                                    if el and el.is_visible():
+                                        bb = el
+                                        bb.click()
+                                        log("[TAB 2] Da click nut Buoc 2/2 thanh cong!")
+                                        break
+                                except Exception:
+                                    pass
+                            continue
+
+                    # Kiem tra ma tren button
+                    if 'ĐỢI' not in txt and 'LẤY MÃ' not in txt and len(txt) >= 4:
+                        final_code = txt
+                        log(f"\n==================================================")
+                        log(f"   [TAB 2] DA LAY DUOC MA THANH CONG: >>> {final_code} <<<")
+                        log(f"==================================================\n")
+                        break
+
+                page2.close()
+
+            # Neu da lay duoc ma, thoat khoi vong lap thu
+            if final_code:
+                break
+
+        if not final_code:
+            log("[-] Khong the lay duoc ma xac nhan sau cac lan thu!")
+            browser.close()
+            return None
+
+        # -------------------------------------------------------------
+        # TAB 1: NHAP MA VA SUBMIT
+        # -------------------------------------------------------------
+        log(f"[3/4] [TAB 1] Quay lai trang BBMKTS de mo khoa va nhap ma...")
+        page1.bring_to_front()
+
+        link_el = page1.query_selector('#link')
+        if link_el:
+            log("[TAB 1] Click vao link quang cao de kich hoat session...")
+            try:
+                link_el.click(timeout=3000)
+            except Exception:
+                pass
+            time.sleep(2)
+
+        inp = page1.query_selector('#input-field') or page1.query_selector('input[name="code"]')
+        if inp:
+            log(f"[TAB 1] Dien ma '{final_code}' vao o nhap lieu...")
+            inp.fill(final_code)
+
+        time.sleep(1)
+
+        log(f"[TAB 1] Gui request submit ma '{final_code}' truc tiep qua fetch...")
+        res = page1.evaluate("""async (code) => {
+            let token = '';
+            let type = '';
+            let tokenInp = document.querySelector('input[name="token"]');
+            if (tokenInp) token = tokenInp.value;
+            
+            let scripts = Array.from(document.querySelectorAll('script')).map(s => s.innerText);
+            for (let s of scripts) {
+                let m = s.match(/token:\\s*['"]([A-Za-z0-9._=-]+)['"]/);
+                if (m) {
+                    token = m[1];
+                    if (s.includes("type: 'available'")) type = 'available';
+                    break;
+                }
+            }
+            let fm = document.getElementById('fm');
+            let sendCode = async (c) => {
+                let body = new URLSearchParams();
+                body.append('code', c.trim());
+                if (token) body.append('token', token);
+                if (type) body.append('type', type);
+                if (fm) {
+                    for (let el of fm.elements) {
+                        if (el.name && el.name !== 'code' && !body.has(el.name)) {
+                            body.append(el.name, el.value);
+                        }
+                    }
+                }
+                let r = await fetch('https://bbmkts.com/link/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body.toString()
+                });
+                let json = await r.json();
+                return { ok: true, data: json, status: r.status };
+            };
+
+            try {
+                let res = await sendCode(code);
+                if (res.status !== 200 && code.toLowerCase() !== code) {
+                    res = await sendCode(code.toLowerCase());
+                }
+                return res;
+            } catch (e) {
+                return { ok: false, error: e.toString() };
+            }
+        }""", final_code)
+        log(f"[TAB 1] Ket qua submit: {res}")
+        if res and res.get('ok') and isinstance(res.get('data'), dict) and res['data'].get('url'):
+            final_destination = res['data']['url']
+            log(f"[TAB 1] Phat hien link dich tu API: {final_destination}")
+        elif res and res.get('ok') and isinstance(res.get('data'), str) and res['data'].startswith('http'):
+            final_destination = res['data']
+            log(f"[TAB 1] Phat hien link dich: {final_destination}")
+        else:
+            check_btn = page1.query_selector('#formgetlink') or page1.query_selector('#check222') or page1.query_selector('button[type="submit"]')
+            if check_btn:
+                log("[TAB 1] Mo khoa va click nut submit (#formgetlink / #check222)...")
+                page1.evaluate("""() => {
+                    let b = document.getElementById('formgetlink') || document.getElementById('check222') || document.querySelector('button[type="submit"]');
+                    if (b) { b.disabled = false; b.click(); }
+                }""")
+
+        # -------------------------------------------------------------
+        # TRICH XUAT VA GIAI MA LINK NGOAI CUOI CUNG
+        # -------------------------------------------------------------
+        log("[4/4] Dang cho nhan link chuyen huong dich...")
+        for sec in range(25):
+            if final_destination:
+                break
+            try:
+                cur = page1.url
+                if 'bbmkts.com/go/' not in cur and 'about:blank' not in cur:
+                    final_destination = cur
+                    break
+            except Exception:
+                pass
+
+            try:
+                toast = page1.query_selector('.toast-message')
+                if toast and toast.is_visible():
+                    log(f"  [Toast message] {toast.inner_text()}")
+            except Exception:
+                pass
+            time.sleep(1)
+
+        time.sleep(2)
+        try:
+            cur = page1.url
+            if 'bbmkts.com/go/' not in cur and 'about:blank' not in cur:
+                final_destination = cur
+        except Exception:
+            pass
+
+        # Bypas trang trung gian /go/file/ de trich xuat link ngoai thuc te
+        if final_destination and 'bbmkts.com/go/file/' in final_destination:
+            encoded_part = final_destination.split('/go/file/')[-1]
+            real_url = None
+            try:
+                dec = base64.b64decode(encoded_part + '===').decode('utf-8')
+                if dec.startswith('http'):
+                    real_url = dec
+            except Exception:
+                pass
+            
+            if not real_url:
+                try:
+                    dec = urllib.parse.unquote(encoded_part)
+                    if dec.startswith('http'):
+                        real_url = dec
+                except Exception:
+                    pass
+
+            if real_url:
+                log(f"[GET LINK NGOAI] Da giai ma URL dich goc tu trang file:")
+                final_destination = real_url
+
+        log("=================================================================")
+        if final_destination:
+            log(f"   [THANH CONG 100%] LINK DICH CUOI CUNG:")
+            log(f"   >>> {final_destination} <<<")
+            log(f"FINAL DESTINATION URL: {final_destination}")
+        else:
+            log(f"   [-] URL hien tai: {page1.url}")
+        log("=================================================================")
+
+        # Chup anh man hinh ket qua
+        screen_path = os.path.join(ROOT_DIR, "final_destination_screen.png")
+        try:
+            page1.screenshot(path=screen_path)
+            log(f"[+] Da chup anh man hinh ket qua luu tai: {screen_path}")
+        except Exception:
+            pass
+
+        browser.close()
+        
+        if final_destination:
+            try:
+                with open(DEST_FILE, "w", encoding="utf-8") as f:
+                    f.write(final_destination)
+                final_dest_file = os.path.join(ROOT_DIR, "DESTINATION_FINAL_URL.txt")
+                with open(final_dest_file, "w", encoding="utf-8") as f:
+                    f.write(final_destination)
+                desk_dest = os.path.expanduser(r"~\Desktop\destination_url.txt")
+                with open(desk_dest, "w", encoding="utf-8") as f_d:
+                    f_d.write(final_destination)
+            except Exception:
+                pass
+            try:
+                if sys.platform == "win32":
+                    import subprocess
+                    subprocess.run(["clip"], input=final_destination.encode("utf-8"), check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+
+        log("=== BYPASS HOAN TAT 100% ===")
+        return final_destination
 
 if __name__ == "__main__":
-    if "main" in globals():
-        globals()["main"]()
-    elif "run" in globals():
-        globals()["run"]()
+    run()
