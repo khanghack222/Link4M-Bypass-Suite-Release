@@ -60,6 +60,22 @@ function extractDomainFromImage(imgUrl) {
   return null;
 }
 
+// Hàm phân giải domain qua Microservice Cloud API Crawler
+function resolveDomainFromCloudApi(slug, keyword) {
+  try {
+    const params = new URLSearchParams();
+    if (slug) params.append('slug', slug);
+    if (keyword) params.append('keyword', keyword);
+    const cmd = `curl -s -m 5 -H "X-API-Key: sk_sec_fdcad6104ba10090f0b730864b123580" "https://link4m-microservice-api.onrender.com/api/v1/camps/resolve?${params.toString()}"`;
+    const out = execSync(cmd, { encoding: 'utf-8', timeout: 6000, windowsHide: true });
+    const res = JSON.parse(out);
+    if (res && res.data && res.data.target_domain) {
+      return res.data.target_domain;
+    }
+  } catch (e) {}
+  return null;
+}
+
 // Kiểm tra xem URL có phải là URL quảng cáo rác / popup ngoài không
 function isAdOrSpamUrl(u, targetDomain) {
   if (!u || typeof u !== 'string' || !u.startsWith('http')) return false;
@@ -357,7 +373,16 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
       }
     }
 
-    // 2. Ưu tiên số 2: Quét nội dung văn bản trực tiếp trên trang linkhuongdan
+    // 2. Ưu tiên số 2: Tra cứu qua Cloud Microservice Crawler API (Live DNS + Widget verified)
+    if (!targetDomain) {
+      const cloudDomain = resolveDomainFromCloudApi(slug, keyword);
+      if (cloudDomain && !cloudDomain.includes('google') && !cloudDomain.includes('linkhuongdan') && !cloudDomain.includes('octolink')) {
+        targetDomain = cloudDomain;
+        onLog(`☁️ [Cloud Crawler API] Đã tra cứu thành công domain qua Microservice: ${targetDomain}`);
+      }
+    }
+
+    // 3. Ưu tiên số 3: Quét nội dung văn bản trực tiếp trên trang linkhuongdan
     if (!targetDomain) {
       targetDomain = await page.evaluate(() => {
         const textEls = document.querySelectorAll('strong, b, mark, span, p, a, code, .ctc-shortcode');
@@ -378,7 +403,7 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
       }
     }
 
-    // 3. Fallback: Tra cứu trong cơ sở dữ liệu tự động học trước đó
+    // 4. Fallback: Tra cứu trong cơ sở dữ liệu tự động học trước đó
     if (!targetDomain) {
       targetDomain = dbCamps[slug] || (keyword ? dbCamps[keyword.toLowerCase().trim()] : null);
     }
