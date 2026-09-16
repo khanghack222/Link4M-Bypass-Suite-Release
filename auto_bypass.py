@@ -1,25 +1,354 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Link4M Security Engine - Protected Unified Autonomous Launcher
-# Protected by polymorphic bytecode encryption & anti-tamper integrity checks.
-__author__ = "khanghack222"
-__version__ = "4.5.0"
-__obfuscated__ = True
-__integrity_hash__ = "b15a5696cfe6c115db9838eba66abf78c17f506840d9603d6eec9ca164532d72"
+"""
+⚡ LINK4M BYPASS SUITE - UNIFIED AUTONOMOUS ENGINE ⚡
+Auto-detects link type (GTraffic, Direct GTraffic, BBMKTS, LayMa, TrafficVN, Link4M)
+and executes the appropriate bypass runner with zero manual intervention.
+"""
 
-import sys, os, zlib, marshal, base64
+import sys
+import os
+import time
+import re
+import argparse
+import subprocess
 
-try:
-    _0xK = base64.b85decode("3s`LItkk%J+{bT5y~C;{<>f=vO9Zh%9QwhG^t&la")
-    _0xP = base64.b85decode("bApMG$GD@!MyD9{^!4?JJBpZj3@BjMco85QXnc8C{wN3~I<SM)K(_}l=3$4lsa9%@SI*!zVWW&nwO<f1sFC2?X0U`{kX1Bk%OspK#!}cE5(vLY%<ica)SKymDd2YuEVtH?KqfG;==S4Kwy`fWy>h?zP7`V-TLn`*Hs*sz10Z(?K7jDDLYwC{A$~`b#}=)LP3a}1ea1uH$>s{UFR8*88hIHKHokX_Yr>3j0VO9`J~7TK6;meuwEkoc(f&Q4)kHJZ+!sn%P-CN6{(!;3IKte+X^xD6I6pz7Q@^T7{*;~pbpirbmE(=<?HL5Hiqs>C57VdM4>Q{SRLISW9@G;^N&lTN+CqX1ISvG7bH~;b$Nei8by9zB6BsEw2)6yUZxC)=D6An)AF&i*ccE37apC~L-}N~w>R;`qNTWjMCGgwBx~A+3oS;J0?q3lbfOP;EqX?>dW@a|N6;KJVCG1pt0P!sRtW`@PO&!~ziyw7!65&SFN4%XB=Y8sprXFCxYKx%W4P75FsBr3*SzV(IVBr2e_Ik{B)oBAVhLn_lBCyW_IFS-|axp1_noz+6WrGCoYg&%+iDV)gNGpVkgOPNDaNd1=ZEM-#6%E?wY;eK?j_G1W2_)Z3f4CAjna&M&@|mHZ*Uy14Wn}Ju3KpvYt_a2l-#xNcgHwir{3osmN~)yj#{xo>Us&H3-_}y)^c1*Gf=^O|P(X0H1A3w&)W^(K(8@v+3XZLmERL&n4^l}Sar$>fIWl3AJA}9|O`6<$(2QNMmZUc<jMtfAlnnlL1cxv&B48nq`u<wTQ#g${aALH808b=xQ;-i>tC8oR8%)z3v2(dQ3fvV)y7%2Z({drUhkeQ<YvWMvh-Om@Qc0|dGtZrs7)#n0<pPJvBgDa!JY-*zZ7dblI_q~hU*&Knc(OE592mhHWPI&n(_~+LPq`=@10vB-Y?{MIt?{c(gSB|T=wD@w#8XwpH6-fxh-D9{6bJ+Bvb;NCMFEmG00U71xr?2Wjva5S>WklFtmp1Qi5FyO(gb1sHlOcNzhpEXgZg{1y#ERuz7dr(J65xDejJ=(rFwBgb>v*61q?CKzkb-8vUM3rhT*F>1jHO2fNDGC7~<3N7Q+h21?7sJ22q&vyQQ<v6LQ}p|2DXJBNSL=OA+YWOQaX#(gT$D(%qvt%|s5f#H#+nR*<)qHqi{<D)}oSU`>b}O5DaAT^=JJ)j75s#@hI^ebMwcyWzp%O#{gr)Fzk<JITJC130r|6qN`$!xTby19PySer$s^F@@%6LPQiu5m3vAQ#eGU;8n`t+$Ss6XT-vS?d8`A6Dc?^a=+0F6V>n|NIQN_B?FsW6L{>!S5to6`3=Y+JP2<2Y+?$j8)pN*zCKOjRNTg}T%lJMpJ^QFy_sCw(}PP{(%S<lJK69PNLGE3k$zF2!UrLezG5S1FxV=SpPmo#1A?@4hpkjyW}&YfQ)o;7IGxDdwV8XsJN0A-xV62Q{@u8R-g)zPQAvd7{5{|?=za2nx!XNZMH#VQczFKWT3^&yL;AY|Cb8P)<^70Z`qAhjB~e?e^EWtpYlYe(PFcL}POu)IqktUs9-rXbJxTZ3sSk1HA@ex7I{F*sA@VXH)ZeS3=hh<!PV4jBc||=(4fkHZ#%y-!xivr1Ze04&2zy0~->$XULZ48>W2!e{9xevuC3xFSl|!vgWjiO5Q6&#soDl9=GK5*0y5rxSYtR0C$X}DSc@J|*Jg}N_&KrbEH?~&Ap%e<9N$<Cx26lrn=l9kYQ7$3698hqxHgO=UFSsXXHiz2V35wY1qs4;F>Wxv5RBYcGxE?8^EY<#(W;_Ijen=)?ebB55`(?N>lWA-ooVq^Dy=dOd-Sv2A_Dk}3d8><zdRL)828`-;+dwti^i=``M5?O@7MjPQn5FW#;|}Sr|8!vOkAxDIFko12R3@w{5WQ#t9b1K36b^TThU$ByuUljs+DP*_6RWqO@`@}VwRu$EH@Zb4K{O>@pgt@Iyfk?-Ct|2c2YBM)u|3ZtcuA2ZWh|CV`lV;-2nu!pK=Ca#qc<`#WGMdoEQNn3Upg|**$bP={cKq7F;;XaCuf}TbE;s4o2AHMB0u&x%=mDT1ircDXd()m*8;%86Dql~L|3X-9ME>6H80n369c0D|7135J>w?{yA$z}(B@Dq0D_ZFnpz(*b26$`erybpbG-7|UIz@GZ;#CGXK(i~CdimAr9atB-X*{%eDO6FCgbAB`{_M+)FW1#O5+MymXeM?x*+8c>CL<qX2%mAy2JLNjBatcS#sgpc=n#5_q)eE*y@uN+SKRoOXL_tocg+if=0J^56e>wuT{p4sD>&^*F_DgqEs_e%VnEGlqOWIYYqFFtHBYVNlTbE;2<2t(sb`;ZSDgt`R4p|T-XS6bbFQ4OMmyhjvn>J3ALrS@G<Iuy37zTH6Q(OCRYbTT7!z@VlXv{IVS?;&1MtX{%{GG<(h}cS#C<Z9;+=Upnegu`&YBnCAPW$pYKH~CV2#;?tN=wC<jSj{`f3i^712<8)k_7;@qcH$2msWHo2Xi5<R$B<tColOM0%0%uC)PGhgZ;vf(^3ohurR^3mmd9i@1L-WYa?x!lM<-k8wzjdqX=6V>-BM>W+;c5L^`GB?h8JrtY>;*(w?Al+^zticH$=(aNq<*R(w1F@^AeG3NYi%%}cy+_6)bsHttIsz3R?RJh7c%Uka*myoyRg{=5-Ii78woA6L^fE<|isv>o<9>!n|EufhKuB+-ep;iSI~vnjbWVCXXeHnX<?RWvkiE$Sy7z|L9Q54z8S>W;%UXdF`cnoB3E;ooze(q$iLjbDV(xl`u77(Q0ZbC6k1_=~SXK;ui+ab2Ctv*RwAPo_Vv9jRdFD#&&{uf>y9Fassho3E(pow3^gbgW2RCjJ8#lytBh4AYx@ZM<accf_=67aOM$Z`nJF^`nxmM)fBCP}=n3A><ovTLE5S<y3=Xl77xZhf3rH<=2-B5PeE7z8h(c`{0S1(G-H;>yhx!}nFu(vG%w*MODUQYDXBKoC!#EWI&C^~06qX-M%(#nb}9x8caJy4?GN#XkXorOYZ3Q`$t+DBm(Fev5$=W%60x>sMpZIW5XGh!_VerQeNTCw5hvwg?}E!aa$4ypU~jkM!HpSA(1U&=^v>V@fGe^ezYJo|Gg%&ot291^}XwR#1#6>W?jC_!{$g=JJkZG1Mwui^zW-^#2Ax!Jl+p@mcmTD6163!o9c)k=9yThBg!d^t-@<R+gE@`p<d(PPV)2TJpLZ|GYG+qMOywh5FwNo$q-b2aRY26c^ciK;!IX=cI%adaL7yqtF0$9F0qgOYWumhSkLttGJSm>TFfcwx-$)F}nxMXWj19YBG(Hk;v*yqjzd`S$0HG10pFGoEpWI^-blXEd8}c<583z15;6%s*{|)FYYp{eq=nlVgb;j=Wwdl{@d+&q4pxzch48Y{IR7baTJwT&$UBZz`@Z8A`UAa>2wTd`KPU9J2zXJd>E(Oy^%%RRn_)%CqFyDf_>Ug^dA==1UAeT`vU7sQ{grj2qj(2WgD?vDB^0hwI&g4hKrsz(Wh_my^DdE7M)eH1QGk0Tjk2uBi(NmC+*zvLiS4T-Bm8BwvfZ|Ad*SQ+;H$6cMT&IA#%v@nOvslS9ew#FL{;^oXCZg66Ek)}^=>xRfqyw&2h^)M)MHJ}@9h!s_DVC?F7Su~Z)xU4!-l4u+sERl_kOv{e$yJqUDhiq>Ofky+a3?1zq9>Rmy@0j-TR_Oh-GZ4S1FyGT;T;#IGQD$66SMJZh)mXGtHOl@(&IPxiea~mm8Kgb4UJ%!w-Nm*Fqr(0lyNk$=oLCOHS0QY?3&TM={L8QFI7SFa_w;}SuoZTvDBxcIQz^okJC3R88S5O^^+T8@xG)KP+gKV7s)qnT%#l4V&%DeAIzY$R)$_O}<F;9>|{o!YyyTbDoFiiT*D6xcg1Q|kA4tavyod>0kftN?D+mtN^XVg~>M<eE@NqLN1QloM=U{*S(^U`(nu<1~<tBh9>u)Wc1GZBUE&#0JJHV>af<<DWFcwA~Z$N?G8|7mwbApX@2g;J%$^g}GE*(0pFlCcAa_H8KBjPF|>_6dbil&8Kn`9w7n%iGKGh%UP8C!gzgifK^diF1+A6!V%eAO=e<weSa|-Dn;#VGsG}i--s&9#+aay=BZV2x~H(&<>48Z+Cb=numO-s<(H6$qkiQdXPbK3(ZDALy>SeOiJgCvVhblUoM?{sBDk-_RqpYp_V3oVLCTFW3{>=;?OTC1i*{6vJ1VZt(bY{^>SL;o98k#NLEGG2i(9wR`Y=~mpJ)AOCE~<igh7W_Ib#;Uk$l;_bDX2X^pS>S|WOJXKU9mR;-Ft2s4Z{a|#JOuz|gG$pq!4Ms-6KdhLZZVw8Je%iV49nkz9Mq<q{JJ+XJqict2LD+hl(jN4!j-gRSEEn+LBu^lpU=pz^!eZX9+=|<GaEL_MTyF?hT$mV@J8ZhokI&A<PjP?*P1Ygap#4{&1o_zZEv?KMnIm)chi_c3Or5bpUybd(jpH-=k_yj=GwE{pFo+vJ((iSK$m?^=hHEWX#E1YpKNi@2~2SL52z^FEHo}xv%xhtXf?rB0QB5)Et*RGK$SaNmW?UOD)gAywi1@-N@oX}d|BnIVZf=4;wNS?ivtelkzwx(AL_*LrVphu;>mJD*xdL)8BNxL~j9j4))J;s^Oj0>+Kr>mV)lF_(dY5lhO!{2J6!U2mj0^p{d9289eR$~BEj-Sw;=1|6}mUv5-lIHQpM*-DrV;y?~gK(U)RX6n0kqs(MeNz$Q_QaZ6SeFZR+N%%?E1YpKDbJv2Zmv3PK3=cmHRAFMg?ocUPydf@+vLgj%#{%gdPV(cv^mhqT?5nrZH^G8_FPj!4_8dYmp8??Qr+Oug^cRbr?&V;d6rnorxx(D`t<ikm<V0kfxcE4t=)yYrgI;lcjmC~pJidcHz4<r3Ok0pO0x&My;ZuQdak@!E~jbn?Bj+?fZhE-_Sy$y=S*u585gOGC@%7eH{>m-@6F6eJ<^4&bJuu$lJX2@9&QVq6z`lo(}v$7vVGp1oR;zsDaK(rHFXrI@<O~WZeFQ8pC+N<j9LiD#2-krVp8~&6uyOA%0grJAzLuJrQrd_R}GUC%#g*OAl+2+zRJO|fZZJeGg~Et3@2JVO`rGD=-+%jcGm2l8v-09$!NA&LW5N)lspAt^o|=9isxUFV84SyQ(2NH5zF(Rhk5>yc&`^*CL~Uda>|YDOAEABr{il;{h7`be1N;x5hi}~%b?R?W17NAdQY7ZIftt>ovD+hH2PjC9BA_)?QdT<abSKxyb~GGJr-u`y(rU1d!@_9Ju#fXDdH`6W~D08%tDX3td=A_TD)m>RDMA$6HsPQO@y{gMF(Z@=9S5r+Mr>4XM2`MLjvdhnb1N$pZBqVyv(N7D*RLLijEYVBT>XNkr&yDq^css2TYsUtE&2)aiOASIS}9N^HLJ<qB=ozp!-*vM(bk=v{z+Pe|T^OS-B7k9;OH_Ue0#M92FzC=29r1*Z(m=2e;RNWp?pap7Kfr)@^OdlYZ#%ISQ~}!a>Go)HMa#NxRqRj1B|{D7mc`cNm3cdBF4H3H!P~z$WPDA~<8~T8&{F)u)}ED0TQzmo!x7B-cAZC`I*NLii8f*FN4DKVtBc6)*62eg@`0;>kdgb8BZ?QnZ|coJM!s?5Il;20Dv<x4OAWZ+1Znynt5mrtO@-__H7WE<tI_ZfiJ0)7Br4ryg0mW&Kl{Dt54{-@#v8c>AJ;=6Wve;oDhS(Hj9@cOm9`a+QgB2b}R=AD^jAFJpc)=PmbmcSM+*vDRs|NoiwOj5=7G^zua_aXxjSo?*Xg|K85%31_S>%2Gm*ld8n2te`me4u28_XX!<%TTzPOQ!%wS7Guo3zqzjZATa!EK~a5<5xddPiEe+D3er*IFbdw^_GYV<ftETdrdWDr!+9{tH;Hj~*gVCRBr6*0cEoUnEaN=yG^lpu&BzeP&A&utm&Ua8IigG4!mz_KB{`yX!`-9@jXd<aGr2%^D7Icfk;}Prn8gZ7L@CEA2FKm@xO$n=WYOrYFy7ITdQj5T@aOj#vvKtFID=JdlR|CVIT_?HPQDu}itpa&1MWIPk;oZLbLkvE-tP62|7|52>B(;AhDzi>_^nq%kyV2tE#r@FX<pXUdnwj(V1US5n56G2mu7Ix`044E2kF*=qDLh+S<n(a2DiMg=)J-qoZ*vB?DDkkU7;*ALX8U|uHikhs+?)Lzli-MrxI1PHFXZJp-;Zr2W`M`yih4&FC3a<jYzc5YmL2u?kKutE{)aOM;hUI@ke7Sm)3MKPR`oGjWQbO(9IQ`Lu|ypUn?A-jrGJ$R^7n?tqSPmSph1{*c1kqeXV>T>c<$!X0uJ=A*A6#wBY-(`D{qd=HE&fKTDn&u15}6f_2}ZG_52OEC~tnS_*B?9yaL!**n;u#iN2$1cOvvFii_Pk4U!S=A)z1E~F=ihBojAUoyD6-dtoBSl3P?%`rQ{TK(eh2KO0>myl`W)j%af0>r;l1)Y~Oo?qis=7ijNE6BEH&sOi*%DDD6d-aU5cNM_-!NkB*<2XgcLy6g5ckxQ#;-<+DRfAXOlEOG-Cfa`Qyy3$5qidM9!FX3*S|w`Ys%HqRYpkpAP?M<g@c4T`hd`K007)!P+5Pei<J0)RyOem8@Q}0`w|o2_)mjR*4@|OQBF-Km{OU4e+ejtfCqHs7=ziDI`%}_66Td`rs);yb^w{2zQ?HaZYpYl0<=BK6Lzp~%9vwMER`VU5=5gV-5!%$+@s>!J*VTwD*dDpiTg9pfiK09^J6AzfcqdP|2XMwRnjVs`1em1UXEO2KNKFU$pZe)c7r#XMo98yo#o2Sq1bhQt4rI<~fw5noJZBI)1tP4P2_ug_%RPHA#3|wdRs4;MX*5c#VSk&M{b)S;6jo3b{)>)Ohf1H92SY2+$eC`?7OO#=1)vm>(?0(?K0HYGFqXV^xKt8V8P|T5oBJPV;kS-I<pub2Ix>Q<djOo$kli805lMW-stL4@O$cuTJyx&Q074sT=!%JLpoAV1r};c%>U5<g_Te|{F(fTBm^7f`Q?a$lF}Ga*JOolx_InjqhAjH<$o{0J2OC#EyCYOfZD#JLEPd1>b&yT%S3|$$gR&I+%>BjuTNR##c|=9agAfm)t<yBk2>yLGQ)XN}wV3?mU@PCW!0-Ary&GagBgc$vk-Vxpiup`qLznR+p&35-=LNh`H%}%LeCc)_(<RHDDm+62nb~yj`g+!rcu`WxQ$?N9?hK{2ZVepLJ!1e2i((`8Ek{oa48X))AvEC2W5*2ZPR{VLMC#h}6#2iUebqNt^|}jqluLE(HF3x*NU@mzMFiu(?6r`GsCIPmbtSnB?-4DV`(~0xaL-Uq>-f<&ci;V5F`OP^-d1vK1N0-#0bpDMGq{u1@1D4w-4)p<j3{uWBC^?$S$db$n0BS%teTMohK-7Uk+P?pv{Vw$6nR`{-*A+SOcr!>`hyriC3%-i?t0Z}DBU;&+0vX~S6qmb>~`NB%B;V%mn}?iNC6g+xo#6VDTzkfS+1hZDUQ}e8M+p9huRKn0Cne=J*685on(OzvT<kG<>*YFU%^bo?-|nF9a7zcTL?dL&+?-qwQlg`cvM$W)(qjxjNDbhJXUZNgS*PA&jvrQT&A=joq<PH;p~VrkuI15GM6*aqSRy_eN-K0e_tRMLcyiL?<2W__FHdaWyUZxKuA+aYW$sPw?$vt`1G$O_Wfli)uA7*i-*|Gs+?TRS^5ZM=IlSn<Uk~T`UVDE7H9ck!>~H~X1X`&3;;VX=gR^$Q)urBS)C99%ah<SPb$JcIOI!Q2;@wgT2&}IW@Bueo0bZEr@?PnBGk?@guBn?WKMm{Eu3l?hKi4_B@5jyY|{nW_V#*L8~$LCuBmv?r5!_7f}!x>Ww+bn4EKWXtU7z@1vqQ$vAy&Hq6-huuS7N3mdKKx$4(ScTye>;ApI(CqtO_eh3tzKMHmvY^uS%m9FQFa;rNU$qnw$r6t1{~WElF6L*#cQ+X~kAJciJD44a<<#*|`)z=z+RxrTB^L<Q6eRLS|Dy_+D2DNd4%qSA81mQ83%KDL$lum7Q2ILqH*TGtdg;T?EsdGdH3#Ra_+=D<#{iE8Fj($hwHq>*pBBffG2K)KKT_Rr<+EN@CL!%#?yD3q<l--LRN%4bdicUtH=nD1XMqs;bSVGuH5hF|CIBVSG+*gzo_L@t1z8)4HfA82yzBpmK@GEN@s5;i#OGLl%Q;3w}@AZ!8=v!9e*00j}P?_}15#_DvsI8KMG=Fo`Q=qI96(pLCp$r)ClR+7l0<q%%{&FARid99u(?{bEWD1A4v3=WkONeVo>UX*?5)@EmNgr}Y@VkDNZ7g!ur%QM}Sy`jyDF$ZSF0B8>ObSati%c)*k?^aU&l<xiP`J+1OAr~OI7|syw>1J*jDB{=t&q9e8aWMRcnO-hI$O;gR%KHv%@#R%AWWKrpM10zHi&e<y%$;C!t1|Je!JNI3&sxrF?ELC+{HJ0U|A+vXJRwCTt?A&ONW<mhV7}qyO3A!LsAVg66sNqnk)S;Dcx)@NrT76qS?%b&H|16Z(0U+<egszmBmlwK`BCJq%A+i*SqV>pH1p9+S>_77kztxKLKZwS-#4l!!5ZF>3$9tUN1S!&a6|}wZ|XMeyA~wS`&x}941hUEy!PS<Oq;@Q%KGhwkbkUJJ;{w!_{@0w50-hbZhb5&gv3bi!Jwu04lQ<b$5umAo)*q^E82!$3C!Q5A?I=41p_eUqJ^=1{J`r(*Ypo0ibJTs)<Uuv&BDDLR1>m`$m6U-t&$w1PZFS~Rwf(j8MMA~AO|(r=6GL{*S`7+4J(7NjW@ftnf7SzkU?x!NNz6{tq1bFEf;Stb{*;TBK?v}JgPFc>OQ%8sYs|=Wl2SJ3m#1S6|5Inj#3@Ti~BCX85}+#%3Io-0C25ib9h)BCkSh;e25lU9K!Lv8Md!vTL(g*6$?t#Zb<g-XFE9eF2mXUbXEsTYe4V1FXyX_+7yhvIV0c>gvJQ+yN^(#l8JwI^4~JWoSJ_-5_-2!LghPi_xbr{Y0f!P2LzoO5zaVf6hGV|;N-;Mi-f!F<fvDJ9BFkf**<Gj@H0G2JFp>*PK44pH5y)}+dGicD#25I7*Nhji{p>>JJ+dsfKyRnY$O_tEUt?HuOY!V+K02Owy<~*n=oxlvypcUQbm+H@il8;4Mc0{Z`Ja*u!FKO{gHkVmH5DFUI8k3ln&u8bWKzHeem1)_MzYL>-=)wP2hu;wgNCw80+d^%<2IiZ3m#Q@{;espH8&(w|}JG4R7373%JsxR--=5{y)=A_#RDl{cA-?Uo9=p3bcv|CkjMA0OiLCS>y7&Hd3WqEV1p8IaHI)U@i7nHIHx>88GGGGOxZ(DHJz^^U9%xQa=9<Zk?ehKD678j|fiD-?}NJfMT`lyXB`0Mo1)}Uh>)dS%#fuAu05CxgRRb+DD946y_L|@+HHZtrT?*`aPUIdF9z=)Y8QmCSgcv5~e5T?XEiSE}=b*o-|hHICDS)*2*?S-qt8bg$OJQ9`<1{Af@akbdHa<Lx*7hg&V9IHGus+lQ1^ke=7c875ACTh`^pwTE$A+WZS1FINv3IuFKTZa`pnIWPTQ)9Bo{;p&rasuKRJ89!4hUrfsS-)i1o%+x>1qoWQ)`|3U+)1hVf=!24UGTb354lT#~K03`A?;ew~03-3N~(kJK)%jrK&v_V=AKWj^+uV<cSP)re;&FwBz2ND#9KM9#!YvJ|=c2b+oaFp85K+V5RprabijA_Redpzka-#LrsxcnY3Pv|8S*wHPe$g%N55IUNgp4`D3FI0p&aZV|dhpEO^$|&#aW4SqHQ<3xx2Rzkvv%yZsy@26Vdai4wFNcd>v1Zcn<WJkmFfW^m;@!m5SE^ZG?Ov0S41z5%TQtuOidwfj*~k&{s&okQn#)pJV<XRKo+VMR)FdD$7RmE4083U%8}MD-Kb_B9WXDqjIQXa+Y`9Hd7e}piuQLFsyKR{%t^KQVi;YPlyRFbRSbP>}7y}VHRU3Y^JY_#}EHg}p6IppWZo*cYp7nCz8so#Gw*%_LMcustPqNT_3Z=xMXxe(FOmTxr-x_D+7--D$A<Pw+fbDA;EgGQ*@C<y9%)L^Uo%L7SZeSv`_V`6QYx&|)Y#_PwrlLq&S+cH$*dN516R`0NtKss1i4=RwNE)7UAr$d$Ags{uozR!3MOa4a9ndSpmnif7ZEhDqH<&(BIl%~pj1iv&-#2q?WM&uQtIz*|dzWd-Y3a-EshMf%1k+jJsh&83TMmCbEn&n>pG^!qQo$~(wwp0|{sM@T4?CUDqb|C-wzF7>Cz>tBG9+@KR0U@{UW*av4AtHKxis0W&IXhUaea}O>wH&;REhZGXx(UDOkmH)TBXf1I5qmBz&L{GV{FZ3mLbp#Z$Et>ZeTZ|iG^ibBcoE=ZdsHjM+A#|H<BNy7`;-a5F>#`W>DO8<HA%;*f$8p7XLIvJ5mX8V7zG%@<=$osPT}XApg6|lO)TPPVRJAGO?!So$9?lk=+%gn=o2OUD&R}U-nORe%TZYN)l7a8EM&vQL)AQh;E$0W8cadDJ#83QPkQVXVGtPVh&}v6nMb2Bena4Q?3H~Rd}{(NUu1rmty8xYf3E2&Z*O}fpon++zi!@23R09nu;``2hos+Q5T7LFWH1|(sA|@Y*3`5Mo$ZTJ%iyde6#VtHx1W71qXu&OH_j<h`6XB)CmU5<K|y3Kv;^n{YT=zQzpN7%y@Xv&*D?>6<K!!sFs1pA2j3oz)RoZdPQr8rNcd%kQ6`g^g1gaBPGb7qB#jbjq%6d9{YQ&HdEexo?v6;Og1r;sUjm-bE=4S+4|*z{e}hjZ2A%e7H3rgpq2}p!|jONnc=Yvd_r3TfH_PT-|dfHBN=E&Y%RbF6wc;`MQK5JMgU3w9K?!oySF&BJDzh&O7Gk65vUzFB(TX3CkxJIFrfqP*?0sFd%?~{#z)q>9jgYsg?3CI3_uXO5rDf9Rbl;lCtpn>F941kIUE55YPnEFu`H-7Rs>QcY5I!-{aS7I;sb)yB|>3MFNvZ37VYx1m+naU4WKq_QTN}PP~F_SU8XMhhJ~J)BInQ%&5m9o*qJv90szNn&31!tHrj&Tty%$3x{Jurl1@;MPqt)N>n`YfYeH1)f0>-5QPrxQGSwz+sF^le?TXv{>W$fLUX)Gf_#%UuSwf=#x(r!0L#8ga>3e_S+YAV{N}zrkeFm;q+LU#5dE2NbGw1!M{A$8Wfu#nf8~Tnq&#5=6k*He^O5%#(?_1Usd=vw$nvG$s_A?}1Mf{1c$j6Z%lc+O+O(5<y_jc^y?G&SZr|zH0^wg=)i*Te@a)(haGli8Hza08$1$e7qgfo!Ki-LA=p-GzR#bfaUy)1)bkt}Ytncphp>>DaIUE--A|A5jInJZ!fIr-0}mX(;}`j5QYtUhclCi%TtTB3-&w>p_?1k|O1m<nRrtVRawV2pd|tp?%We&fpg#S~l-zNh0>=Ybj%6#M7MDQ~AxUjqtaRupR(13X)|_n;1oh*j}vrha+O64qWXb){`%&fzlnv-LGO$3j;*8u6)&k4sFO>mP_TA~&TGhdc7tN0Yixj?`pQxep%f@tg+eMUFo12;2}OKmr&WJ@}Fm+X^i-=IYDqWXIgCrk!-wLl(MsZ49^bx@SH;x_QtDL@_H1#wD_xE5aPFS@Kb5a_)w}PZ*Dvi;ndA_Ip$m=+ciQ2|dWly6L?QtA@;>U?91A<@3i2=4AsI69Na@_7a21CCu*V;spROTv`}AuN!88e_RX^Tzs?rVWV`~J&gBES~r_!8+mOKugTaWnwQbOM3PD7jSN587#VOSo?%5sag~bWOk?TomN`;>6ysisltm~WZGvOSN}{l0bS5SeX^`39Vavp*(nz67L}!X>*bNUt`)aM4vAyAMkO#IebjMS3SB-*6YsBi*p|+7H)BM42M%pYAVS-_N8>Y62zsT9`Pe2U-<F5S>aoDmNRKGePlR`N1h_&8<gv$@9yF?eN0lj71*ddjO<NDXh7~ZS=G3rUJ2o<o(3?Y`5H)ZDcaUd(Q<?ke}mnX7x!x{*pc^GRvnkT7#$TlWHY>L7go?}NW^aZj_#WD")
-    _0xD = bytes([_b ^ _0xK[_i % len(_0xK)] for _i, _b in enumerate(_0xP)])
-    _0xR = zlib.decompress(_0xD)
-    _0xC = marshal.loads(_0xR)
-    exec(_0xC, globals())
-except Exception as _err:
-    print("[!] Security Integrity Check Failed on auto_bypass:", _err, file=sys.stderr)
-    sys.exit(1)
+# Configure UTF-8 for Windows Terminal
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+CORE_DIR = os.path.join(ROOT_DIR, "src", "core")
+if CORE_DIR not in sys.path:
+    sys.path.insert(0, CORE_DIR)
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+DEST_FILE = os.path.join(ROOT_DIR, "destination_url.txt")
+FINAL_DEST_FILE = os.path.join(ROOT_DIR, "DESTINATION_FINAL_URL.txt")
+
+# ANSI Neon Palette for Windows Terminal
+C_RESET = "\x1b[0m"
+C_BOLD = "\x1b[1m"
+C_DIM = "\x1b[2m"
+C_CYAN = "\x1b[38;2;0;255;240m"
+C_BLUE = "\x1b[38;2;30;144;255m"
+C_PINK = "\x1b[38;2;255;20;147m"
+C_BPINK = "\x1b[38;2;255;105;180m"
+C_PURPLE = "\x1b[38;2;170;85;255m"
+C_GREEN = "\x1b[38;2;0;255;150m"
+C_YELLOW = "\x1b[38;2;255;235;59m"
+C_ORANGE = "\x1b[38;2;255;140;0m"
+C_RED = "\x1b[38;2;255;50;80m"
+C_WHITE = "\x1b[38;2;255;255;255m"
+C_GRAY = "\x1b[38;2;160;160;185m"
+
+BG_CYAN = "\x1b[48;2;0;180;200m\x1b[38;2;0;0;0m\x1b[1m"
+BG_PINK = "\x1b[48;2;255;20;147m\x1b[38;2;255;255;255m\x1b[1m"
+BG_PURPLE = "\x1b[48;2;138;43;226m\x1b[38;2;255;255;255m\x1b[1m"
+BG_GREEN = "\x1b[48;2;34;197;94m\x1b[38;2;0;0;0m\x1b[1m"
+BG_YELLOW = "\x1b[48;2;250;204;21m\x1b[38;2;0;0;0m\x1b[1m"
+BG_ORANGE = "\x1b[48;2;249;115;22m\x1b[38;2;255;255;255m\x1b[1m"
+BG_RED = "\x1b[48;2;239;68;68m\x1b[38;2;255;255;255m\x1b[1m"
+BG_BLUE = "\x1b[48;2;37;99;235m\x1b[38;2;255;255;255m\x1b[1m"
+
+
+def print_banner():
+    banner = [
+        r"  ██████╗  ██╗   ██╗ █████╗  ██╗      ██████╗ ██╗   ██╗██████╗  █████╗ ███████╗███████╗",
+        r"  ██╔══██╗ ██║   ██║██╔══██╗ ██║      ██╔══██╗╚██╗ ██╔╝██╔══██╗██╔══██╗██╔════╝██╔════╝",
+        r"  ██║  ██║ ██║   ██║███████║ ██║      ██████╔╝ ╚████╔╝ ██████╔╝███████║███████╗███████╗",
+        r"  ██║  ██║ ██║   ██║██╔══██║ ██║      ██╔══██╗  ╚██╔╝  ██╔═══╝ ██╔══██║╚════██║╚════██║",
+        r"  ██████╔╝ ╚██████╔╝██║  ██║ ███████╗ ██████╔╝   ██║   ██║     ██║  ██║███████║███████║",
+        r"  ╚═════╝   ╚═════╝ ╚═╝  ╚═╝ ╚══════╝ ╚═════╝    ╚═╝   ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝"
+    ]
+    colors = [C_PINK, C_BPINK, C_PURPLE, C_BLUE, C_CYAN, C_GREEN]
+    print()
+    for i, line in enumerate(banner):
+        print(f"{C_BOLD}{colors[i]}{line}{C_RESET}")
+    print(f"\n  {BG_PURPLE} ⚡ AUTO BYPASS SUITE ⚡ {C_RESET}  {C_BOLD}{C_CYAN}UNIVERSAL SHORTLINK BYPASS ENGINE{C_RESET}")
+    print(f"  {C_DIM}{C_GRAY}✦ GTraffic / Direct GTraffic  ✦ BBMKTS  ✦ LayMa.net  ✦ TrafficVN  ✦ Link4M{C_RESET}\n")
+
+
+def get_clipboard_url() -> str:
+    """Reads URL directly from Windows Clipboard."""
+    try:
+        if sys.platform == "win32":
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            raw = res.stdout.strip()
+            first_line = raw.splitlines()[0].strip() if raw else ""
+            if first_line.startswith("http://") or first_line.startswith("https://"):
+                return first_line
+    except Exception:
+        pass
+    return ""
+
+
+def copy_to_clipboard(text: str):
+    """Copies destination link to Windows Clipboard."""
+    try:
+        if sys.platform == "win32":
+            subprocess.run("clip", input=text.strip().encode("utf-8"), check=True, shell=True)
+    except Exception:
+        pass
+
+
+def classify_url(url: str) -> str:
+    """Accurately classifies the target URL to select the corresponding engine."""
+    u = url.strip().lower()
+    if any(k in u for k in ["link999.app", "link999", "uptolink", "octolink", "linkhuongdan"]):
+        return "LINK999"
+    if any(k in u for k in ["gtraffic.io", "direct.gtraffic.io", "dr-client.gtraffic.io", "client.gtraffic.io", "gtraffic"]):
+        return "GTRAFFIC"
+    if any(k in u for k in ["bbmkts.com", "bbmkt", "yeumoney.com", "yeumoney"]):
+        return "BBMKTS"
+    if any(k in u for k in ["layma.net", "layma"]):
+        return "LAYMA"
+    if any(k in u for k in ["trafficvn.net", "trafficvn.com", "trafficvn"]):
+        return "TRAFFICVN"
+    if any(k in u for k in ["link4m.", "link4m", "link4"]):
+        return "LINK4M"
+    return "GENERIC"
+
+
+def show_result_card(final_url: str, duration_sec: int, engine_name: str):
+    """Displays a clean synthwave result card."""
+    print(f"\n  {C_CYAN}╔══════════════════════════════════════════════════════════════════════════════╗{C_RESET}")
+    print(f"  {C_CYAN}║{C_RESET}  {BG_GREEN} 🏆 BYPASS THÀNH CÔNG RỰC RỠ! {C_RESET}  {C_YELLOW}[{engine_name}]{C_RESET}  {C_DIM}{C_GRAY}Thời gian: {duration_sec}s{C_RESET}               {C_CYAN}║{C_RESET}")
+    print(f"  {C_CYAN}╠══════════════════════════════════════════════════════════════════════════════╣{C_RESET}")
+    print(f"  {C_CYAN}║{C_RESET}  {C_BOLD}{C_WHITE}Link đích:{C_RESET} {C_BOLD}{C_CYAN}{final_url}{C_RESET}")
+    print(f"  {C_CYAN}║{C_RESET}  {C_GREEN}✔ Đã tự động sao chép link vào Clipboard (Ctrl+V để dán)!{C_RESET}             {C_CYAN}║{C_RESET}")
+    print(f"  {C_CYAN}╚══════════════════════════════════════════════════════════════════════════════╝{C_RESET}\n")
+
+
+def save_destination_url(final_url: str):
+    """Saves final destination link to project files and Desktop."""
+    if not final_url:
+        return
+    try:
+        with open(DEST_FILE, "w", encoding="utf-8") as f:
+            f.write(final_url.strip())
+        with open(FINAL_DEST_FILE, "w", encoding="utf-8") as f:
+            f.write(final_url.strip())
+        desk_path = os.path.expanduser(r"~\Desktop\destination_url.txt")
+        with open(desk_path, "w", encoding="utf-8") as fd:
+            fd.write(final_url.strip())
+    except Exception:
+        pass
+    copy_to_clipboard(final_url)
+    try:
+        import winsound
+        winsound.MessageBeep(-1)
+    except Exception:
+        pass
+
+
+def read_captured_destination() -> str:
+    """Reads final destination from project output files."""
+    for path in [FINAL_DEST_FILE, DEST_FILE]:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    u = f.read().strip()
+                    if u.startswith("http"):
+                        return u
+            except Exception:
+                pass
+    return ""
+
+
+def execute_bypass(target_url: str, headless: bool = True) -> str:
+    """Executes the specialized bypass runner according to the URL category."""
+    target_url = target_url.strip()
+    category = classify_url(target_url)
+
+    # Clean up old destination files
+    for p in [DEST_FILE, FINAL_DEST_FILE]:
+        if os.path.exists(p):
+            try: os.remove(p)
+            except Exception: pass
+
+    start_time = time.time()
+
+    # 0. Instant Zero-Click BBMKTS /go/file/ Base64 Decoder (0.001s)
+    if "/go/file/" in target_url and any(k in target_url.lower() for k in ["bbmkts", "bbmkt", "yeumoney"]):
+        print(f"\n  {BG_PINK} ⚡ PHÁT HIỆN LINK FILE BBMKTS TRỰC TIẾP ⚡ {C_RESET}")
+        encoded_part = target_url.split("/go/file/")[-1].split("?")[0].split("#")[0]
+        import base64, urllib.parse
+        for dec_fn in [
+            lambda s: base64.b64decode(s + "===").decode("utf-8", errors="ignore"),
+            lambda s: urllib.parse.unquote(s)
+        ]:
+            try:
+                dec = dec_fn(encoded_part)
+                if dec.startswith("http"):
+                    print(f"  {C_GREEN}✔ Giải mã Base64 tức thì trong 0.001s: {dec}{C_RESET}")
+                    save_destination_url(dec)
+                    show_result_card(dec, 0, "BBMKTS INSTANT BASE64")
+                    return dec
+            except Exception:
+                pass
+
+    if category == "LINK999":
+        print(f"  {BG_PINK} ▶ KHỞI CHẠY {C_RESET}  {C_BOLD}{C_BPINK}LINK999 / UPTOLINK AUTONOMOUS ENGINE{C_RESET}")
+        print(f"  {C_DIM}{C_GRAY}Mục tiêu: {target_url} | Headless: {headless}{C_RESET}\n")
+        octo_js = os.path.join(CORE_DIR, "octolink_runner.js")
+        if os.path.exists(octo_js):
+            try:
+                js_cmd = f"const {{ runBypass }} = require('{octo_js.replace(chr(92), '/')}'); runBypass('{target_url}', {{ headless: {str(headless).lower()} }}).then(r => {{ if (r && r.finalUrl) console.log('FINAL DESTINATION URL:', r.finalUrl); }}).catch(e => console.error(e));"
+                subprocess.run(["node", "-e", js_cmd], check=False)
+            except Exception as e:
+                print(f"[-] Node.js runner error: {e}")
+        else:
+            print(f"[-] Không tìm thấy {octo_js}")
+
+    if category == "GTRAFFIC":
+        # 0.1. Zero-Click Fast API Probe for GTraffic Direct Link Leak (0.2s)
+        try:
+            import urllib.request, json
+            is_direct = "direct.gtraffic.io" in target_url or "dr-client" in target_url
+            slug = target_url.split("?")[0].split("#")[0].strip().rstrip("/").split("/")[-1]
+            probe_headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Referer": target_url,
+                "Content-Type": "application/json"
+            }
+            if is_direct:
+                api_url = f"https://dr-client.gtraffic.io/api/url/get?id={slug}&deviceType=desktop"
+            else:
+                api_url = f"https://client.gtraffic.io/api/url/get?id={slug}&deviceType=desktop"
+
+            d_req = urllib.request.Request(api_url, headers=probe_headers)
+            with urllib.request.urlopen(d_req, timeout=4) as d_res:
+                get_data = json.loads(d_res.read().decode("utf-8", errors="ignore"))
+
+            if get_data:
+                dl = get_data.get("data_link")
+                direct_leak = None
+                if isinstance(dl, dict) and dl.get("url"):
+                    direct_leak = dl.get("url")
+                elif isinstance(dl, str) and dl.startswith("http"):
+                    direct_leak = dl
+                if direct_leak and "gtraffic.io" not in direct_leak:
+                    print(f"\n  {BG_GREEN} ⚡ PHÁT HIỆN LINK ĐÍCH TRỰC TIẾP TỪ GTRAFFIC API LEAK ⚡ {C_RESET}")
+                    print(f"  {C_GREEN}✔ Lấy link thành công trong 0.2s không cần mở trình duyệt: {direct_leak}{C_RESET}")
+                    save_destination_url(direct_leak)
+                    show_result_card(direct_leak, 0, "GTRAFFIC ZERO-WAIT LEAK")
+                    return direct_leak
+        except Exception:
+            pass
+
+        print(f"  {BG_ORANGE} ▶ KHỞI CHẠY {C_RESET}  {C_BOLD}{C_ORANGE}GTRAFFIC & DIRECT GTRAFFIC AUTONOMOUS ENGINE{C_RESET}")
+        print(f"  {C_DIM}{C_GRAY}Mục tiêu: {target_url} | Headless: {headless}{C_RESET}\n")
+        import gtraffic_runner
+        gtraffic_runner.run(target_url, headless=headless)
+
+    elif category == "BBMKTS":
+        print(f"  {BG_PINK} ▶ KHỞI CHẠY {C_RESET}  {C_BOLD}{C_BPINK}BBMKTS AUTONOMOUS DUAL-TAB ENGINE{C_RESET}")
+        print(f"  {C_DIM}{C_GRAY}Mục tiêu: {target_url} | Headless: {headless}{C_RESET}\n")
+        import bbmkts_runner
+        bbmkts_runner.run(target_url, headless=headless)
+
+    elif category == "LAYMA":
+        print(f"  {BG_PURPLE} ▶ KHỞI CHẠY {C_RESET}  {C_BOLD}{C_PURPLE}LAYMA.NET QCAPTCHA STEALTH & HSV ENGINE{C_RESET}")
+        print(f"  {C_DIM}{C_GRAY}Mục tiêu: {target_url} | Headless: {headless}{C_RESET}\n")
+        import layma_runner
+        layma_runner.run(target_url, headless=headless)
+
+    elif category == "TRAFFICVN":
+        print(f"  {BG_GREEN} ▶ KHỞI CHẠY {C_RESET}  {C_BOLD}{C_GREEN}TRAFFICVN TURNSTILE & CREEPJS ENGINE (BETA){C_RESET}")
+        print(f"  {C_DIM}{C_GRAY}Mục tiêu: {target_url} | Headless: {headless}{C_RESET}\n")
+        import trafficvn_runner
+        trafficvn_runner.run(target_url, headless=headless)
+
+    else:
+        # Default Link4M runner
+        print(f"  {BG_CYAN} ▶ KHỞI CHẠY {C_RESET}  {C_BOLD}{C_CYAN}LINK4M RAPIDOCR & WHISPER AI ENGINE{C_RESET}")
+        print(f"  {C_DIM}{C_GRAY}Mục tiêu: {target_url} | Headless: {headless}{C_RESET}\n")
+        import bypass
+        bypass.run(target_url, headless=headless)
+
+    duration = int(time.time() - start_time)
+    final_dest = read_captured_destination()
+
+    if final_dest and final_dest.startswith("http"):
+        save_destination_url(final_dest)
+        show_result_card(final_dest, duration, category)
+        return final_dest
+    else:
+        print(f"\n  {C_YELLOW}⚠ Tiến trình hoàn tất nhưng chưa trích xuất được link đích.{C_RESET}\n")
+        return ""
+
+
+def run_loop_watcher(headless: bool = True):
+    """Continuous Clipboard Watcher Mode: auto-bypasses whenever a shortlink is copied."""
+    print(f"  {BG_GREEN} 🔄 CHẾ ĐỘ GIÁM SÁT CLIPBOARD TỰ ĐỘNG (LOOP WATCHER) 🔄 {C_RESET}")
+    print(f"  {C_GRAY}Đang lắng nghe Clipboard... Hãy copy bất kỳ link shortlink nào (Ctrl+C).{C_RESET}")
+    print(f"  {C_DIM}Nhấn Ctrl+C trong terminal để dừng lại.{C_RESET}\n")
+
+    last_url = ""
+    while True:
+        try:
+            curr_url = get_clipboard_url()
+            if curr_url and curr_url != last_url:
+                cat = classify_url(curr_url)
+                if cat != "OCTOLINK":
+                    print(f"\n  {BG_BLUE} 📥 PHÁT HIỆN LINK MỚI: {C_RESET} {C_BOLD}{C_CYAN}{curr_url}{C_RESET}")
+                    last_url = curr_url
+                    res = execute_bypass(curr_url, headless=headless)
+                    if res:
+                        last_url = res  # prevent re-triggering on own destination URL
+            time.sleep(1.5)
+        except KeyboardInterrupt:
+            print(f"\n  {C_GREEN}👋 Đã dừng chế độ giám sát.{C_RESET}\n")
+            break
+        except Exception as e:
+            time.sleep(2)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="⚡ Link4M Bypass Suite - Universal Auto Bypass Engine ⚡",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument("url", nargs="?", default=None, help="Target shortlink URL to bypass")
+    parser.add_argument("--head", "-w", "--window", action="store_true", help="Run with visible browser window")
+    parser.add_argument("--headless", "-hl", action="store_true", default=True, help="Run in headless browser mode (default)")
+    parser.add_argument("--loop", "-l", action="store_true", help="Continuously monitor clipboard for new shortlinks")
+
+    args = parser.parse_args()
+
+    # Default to 100% headless unless explicitly requested windowed
+    headless = False if args.head else True
+
+    print_banner()
+
+    # Loop Mode
+    if args.loop:
+        run_loop_watcher(headless=headless)
+        return
+
+    target_url = args.url
+
+    # Check clipboard if URL argument was not provided
+    if not target_url:
+        clip_url = get_clipboard_url()
+        if clip_url:
+            cat = classify_url(clip_url)
+            print(f"  {BG_PURPLE} 🔗 PHÁT HIỆN LINK TỪ CLIPBOARD: {C_RESET} {C_BOLD}{C_CYAN}{clip_url}{C_RESET} {C_YELLOW}[{cat}]{C_RESET}")
+            ans = input(f"  {C_BOLD}{C_YELLOW}➤ Nhấn [Enter] để vượt ngay link này, hoặc nhập link khác: {C_RESET}").strip()
+            target_url = ans if ans.startswith("http") else clip_url
+        else:
+            default_demo = "https://gtraffic.io/X3BR2OQ"
+            ans = input(f"  {C_BOLD}{C_CYAN}➤ Nhập link cần vượt {C_DIM}(Enter để dùng demo {default_demo}){C_RESET}: ").strip()
+            target_url = ans if ans.startswith("http") else default_demo
+
+    execute_bypass(target_url, headless=headless)
+
 
 if __name__ == "__main__":
-    if "main" in globals():
-        globals()["main"]()
+    main()

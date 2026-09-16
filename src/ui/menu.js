@@ -285,7 +285,7 @@ function showResultCard(finalUrl, durationSec) {
     console.log(`  ${c.neonCyan}╚══════════════════════════════════════════════════════════════════════════════╝${c.reset}\n`);
 }
 
-let currentHeadless = false;
+let currentHeadless = true;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -694,7 +694,7 @@ function runBypassLayMa(targetUrl, headless = currentHeadless) {
 function isOctolinkUrl(u) {
     if (!u) return false;
     const lower = u.toLowerCase();
-    return lower.includes("octolink") || lower.includes("linkhuongdan") || /octo/i.test(lower);
+    return lower.includes("link999") || lower.includes("uptolink") || lower.includes("octolink") || lower.includes("linkhuongdan") || /octo/i.test(lower);
 }
 
 function isLink4mUrl(u) {
@@ -706,9 +706,7 @@ function isLink4mUrl(u) {
 async function dispatchUrl(url, headless = currentHeadless) {
     const target = url.trim();
     if (isOctolinkUrl(target)) {
-        console.log(`\n  ${c.bgRed} ⛔ THÔNG BÁO TẠM NGỪNG DỰ ÁN OCTOLINK ⛔ ${c.reset}`);
-        console.log(`  ${c.crimsonRed}Website octolink.vip đã bị Cục An ninh mạng (A05 - Bộ Công An) chặn do có dấu hiệu vi phạm Điều 321, 322 Bộ luật Hình sự.${c.reset}`);
-        console.log(`  ${c.flameOrange}Dự án chính thức ngừng mọi hoạt động hỗ trợ Octolink để đảm bảo an toàn và tuân thủ pháp luật.${c.reset}\n`);
+        await runBypassOctolink(target, headless);
         return;
     }
     if (isLaymaUrl(target)) {
@@ -747,13 +745,14 @@ async function main() {
         console.log(`  ${c.neonCyan}╔══════════════════════════════════════════════════════════════════════════════╗${c.reset}`);
         console.log(`  ${c.neonCyan}║${c.reset}                          ${c.bold}${c.cyberYellow}⚡ BẢNG ĐIỀU KHIỂN TÁC VỤ ⚡${c.reset}                         ${c.neonCyan}║${c.reset}`);
         console.log(`  ${c.neonCyan}╠══════════════════════════════════════════════════════════════════════════════╣${c.reset}`);
-        console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.neonCyan}[1]${c.reset} ${c.bold}${c.pureWhite}⚡ Vượt Link Tự Động${c.reset} ${c.dim}(Auto Detect: Link4M/BBMKTS/Gtraffic/LayMa)${c.reset}  ${c.neonCyan}║${c.reset}`);
+        console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.neonCyan}[1]${c.reset} ${c.bold}${c.pureWhite}⚡ Vượt Link Tự Động${c.reset} ${c.dim}(Auto Detect: Link4M/BBMKTS/Gtraffic/LayMa/Octo)${c.reset} ${c.neonCyan}║${c.reset}`);
         console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.electricBlue}[2]${c.reset} ${c.bold}${c.pureWhite}🎯 Vượt Link4M Chuyên Sâu${c.reset} ${c.dim}(Whisper AI + Smart Health-Check)${c.reset}        ${c.neonCyan}║${c.reset}`);
         console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.brightPink}[3]${c.reset} ${c.bold}${c.pureWhite}💎 Vượt BBMKTS Chuyên Sâu${c.reset} ${c.dim}(Autonomous Dual-Tab Engine)${c.reset}             ${c.neonCyan}║${c.reset}`);
         console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.flameOrange}[4]${c.reset} ${c.bold}${c.pureWhite}🚀 Vượt Gtraffic Chuyên Sâu${c.reset} ${c.dim}(Mobile Viewport + Fast Auto Solver)${c.reset}      ${c.neonCyan}║${c.reset}`);
         console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.hotPink}[5]${c.reset} ${c.bold}${c.pureWhite}🌟 Vượt LayMa.net Chuyên Sâu${c.reset} ${c.dim}(QCaptcha Stealth + HSV Vision)${c.reset}       ${c.neonCyan}║${c.reset}`);
-        console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.cyberYellow}[6]${c.reset} ${c.bold}${c.pureWhite}🖥️ Đổi Trình Duyệt: [${modeStatus}${c.bold}${c.pureWhite}]${c.reset} ${c.dim}(Bấm 6 để chuyển đổi)${c.reset}            ${c.neonCyan}║${c.reset}`);
-        console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.pureWhite}[7]${c.reset} ${c.bold}${c.pureWhite}📖 Hướng Dẫn & Tuyên Bố Pháp Lý${c.reset}                                         ${c.neonCyan}║${c.reset}`);
+        console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.mintGreen}[6]${c.reset} ${c.bold}${c.pureWhite}🐙 Vượt Octolink / Link999${c.reset} ${c.dim}(Canvas Physics + Hold Captcha)${c.reset}        ${c.neonCyan}║${c.reset}`);
+        console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.cyberYellow}[7]${c.reset} ${c.bold}${c.pureWhite}🖥️ Đổi Trình Duyệt: [${modeStatus}${c.bold}${c.pureWhite}]${c.reset} ${c.dim}(Bấm 7 để chuyển đổi)${c.reset}            ${c.neonCyan}║${c.reset}`);
+        console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.pureWhite}[8]${c.reset} ${c.bold}${c.pureWhite}📖 Hướng Dẫn & Thông Tin Kỹ Thuật${c.reset}                                    ${c.neonCyan}║${c.reset}`);
         console.log(`  ${c.neonCyan}║${c.reset}  ${c.bold}${c.crimsonRed}[0]${c.reset} ${c.bold}${c.pureWhite}🚪 Thoát Ứng Dụng${c.reset}                                                      ${c.neonCyan}║${c.reset}`);
         console.log(`  ${c.neonCyan}╚══════════════════════════════════════════════════════════════════════════════╝${c.reset}\n`);
 
@@ -761,8 +760,8 @@ async function main() {
         if (clipUrl) {
             const isOcto = isOctolinkUrl(clipUrl);
             if (isOcto) {
-                console.log(`  ${c.bgRed} ⛔ PHÁT HIỆN LINK OCTOLINK: ${c.reset} ${c.dim}${clipUrl}${c.reset}`);
-                console.log(`  ${c.crimsonRed}↳ Hệ thống từ chối xử lý link Octolink do đã bị Bộ Công An cấm.${c.reset}\n`);
+                console.log(`  ${c.bgPink} 🔗 OCTOLINK / LINK999 PHÁT HIỆN: ${c.reset} ${c.bold}${c.hotPink}${clipUrl}${c.reset}`);
+                console.log(`  ${c.dim}${c.softGray}↳ Nhấn Enter (chọn 1) để tự động vượt ngay link này!${c.reset}\n`);
             } else if (isLaymaUrl(clipUrl)) {
                 console.log(`  ${c.bgPink} 🔗 LAYMA.NET PHÁT HIỆN: ${c.reset} ${c.bold}${c.brightPink}${clipUrl}${c.reset}`);
                 console.log(`  ${c.dim}${c.softGray}↳ Nhấn Enter (chọn 1) để tự động vượt ngay link này!${c.reset}\n`);
@@ -790,37 +789,43 @@ async function main() {
         } else if (choice === "0") {
             console.log(`\n  ${c.mintGreen}✨ Cảm ơn bạn đã sử dụng Link4M Bypass Suite! Hẹn gặp lại! ✨${c.reset}\n`);
             process.exit(0);
-        } else if (choice === "6") {
+        } else if (choice === "7") {
             currentHeadless = !currentHeadless;
             console.log(`\n  ${c.mintGreen}✅ Đã chuyển sang chế độ: ${currentHeadless ? "Ẩn (Headless - Siêu tốc)" : "Hiện cửa sổ (Window - Dễ quan sát)"}${c.reset}\n`);
             await sleep(1200);
             continue;
-        } else if (choice === "7" || choice.toLowerCase() === "h") {
+        } else if (choice === "8" || choice.toLowerCase() === "h") {
             clearScreen();
             printBanner();
-            console.log(`  ${c.bold}${c.neonCyan}📋 THÔNG TIN HỆ THỐNG & TUYÊN BỐ PHÁP LÝ:${c.reset}\n`);
-            console.log(`  ${c.bold}${c.crimsonRed}⛔ THÔNG BÁO DỪNG DỰ ÁN OCTOLINK:${c.reset}`);
-            console.log(`     • ${c.softGray}Hệ thống octolink.vip đã bị Cục An ninh mạng (A05 - Bộ Công An) chặn do vi phạm Điều 321, 322 BLHS.${c.reset}`);
-            console.log(`     • ${c.softGray}Dự án tuân thủ nghiêm ngặt pháp luật và chính thức ngừng mọi hoạt động liên quan đến Octolink.${c.reset}\n`);
-            console.log(`  ${c.bold}${c.electricBlue}1. Link4M Bypass Core:${c.reset}`);
+            console.log(`  ${c.bold}${c.neonCyan}📋 THÔNG TIN HỆ THỐNG & KỸ THUẬT:${c.reset}\n`);
+            console.log(`  ${c.bold}${c.mintGreen}1. Octolink / Link999 Bypass Core:${c.reset}`);
+            console.log(`     • ${c.softGray}Canvas Arc Interceptor: Hook prototype để bám sát chuyển động hình tròn Hold Captcha.${c.reset}`);
+            console.log(`     • ${c.softGray}Shadow DOM Walker: Tự động trích xuất các capsule-container và đếm ngược ngầm.${c.reset}\n`);
+            console.log(`  ${c.bold}${c.electricBlue}2. Link4M Bypass Core:${c.reset}`);
             console.log(`     • ${c.softGray}RapidOCR trên ONNX Runtime: Nhận diện chính xác domain tài trợ từ ảnh SERP.${c.reset}`);
             console.log(`     • ${c.softGray}Whisper AI Audio Solver: Tự động giải Google reCAPTCHA v2 (Form 2 Enterprise fix).${c.reset}`);
             console.log(`     • ${c.softGray}Tự động phục hồi domain bị che sao (*, ***, co***.tw, c***) và probe live HTTP/HTTPS.${c.reset}\n`);
-            console.log(`  ${c.bold}${c.brightPink}2. BBMKTS Bypass Core:${c.reset}`);
+            console.log(`  ${c.bold}${c.brightPink}3. BBMKTS Bypass Core:${c.reset}`);
             console.log(`     • ${c.softGray}Autonomous Dual-Tab Engine: Tab 1 giữ session bbmkts.com, Tab 2 thực thi countdown đối tác.${c.reset}`);
             console.log(`     • ${c.softGray}Bypass triệt để anti-incognito và chặn popup "THIẾU BƯỚC NHIỆM VỤ" via route patch.${c.reset}`);
             console.log(`     • ${c.softGray}Tự động gửi trực tiếp fetch /link/submit và giải mã link callback an toàn 100%.${c.reset}\n`);
-            console.log(`  ${c.bold}${c.flameOrange}3. Gtraffic Bypass Core:${c.reset}`);
+            console.log(`  ${c.bold}${c.flameOrange}4. Gtraffic Bypass Core:${c.reset}`);
             console.log(`     • ${c.softGray}Mobile Viewport Spoofing (414x896) vượt qua CSS ẩn nút desktop của nhà tài trợ.${c.reset}`);
             console.log(`     • ${c.softGray}Tự động click nút #traffic-button-no, đếm ngược ~62s lấy mã viên nhộng và submit Tab 1.${c.reset}\n`);
-            console.log(`  ${c.bold}${c.hotPink}4. LayMa.net Bypass Core (MỚI):${c.reset}`);
+            console.log(`  ${c.bold}${c.hotPink}5. LayMa.net Bypass Core:${c.reset}`);
             console.log(`     • ${c.softGray}QCaptcha Stealth Runtime Patch: Spoof WebGL Intel UHD 620, gỡ bỏ automation probes.${c.reset}`);
             console.log(`     • ${c.softGray}HSV Contour Shape Analysis: Phân tích hình học đường bao 9 ô odd-one-out với độ chính xác 100%.${c.reset}`);
             console.log(`     • ${c.softGray}Mô phỏng quỹ đạo chuột tự nhiên, duy trì time-on-site heartbeat và giải mã link callback an toàn.${c.reset}\n`);
-            console.log(`  ${c.bold}${c.cyberYellow}5. Tùy chọn Headless linh hoạt:${c.reset}`);
-            console.log(`     • ${c.softGray}Phím [6]: Bật/Tắt chế độ chạy ẩn (Headless --headless=new) siêu tốc.${c.reset}\n`);
+            console.log(`  ${c.bold}${c.cyberYellow}6. Tùy chọn Headless linh hoạt:${c.reset}`);
+            console.log(`     • ${c.softGray}Phím [7]: Bật/Tắt chế độ chạy ẩn (Headless --headless=new) siêu tốc.${c.reset}\n`);
             await ask(`  ${c.cyberYellow}Nhấn Enter để quay lại menu chính...${c.reset}`);
             continue;
+        } else if (choice === "6") {
+            const defaultUrl = "https://octolink.vip/K3r4k5";
+            const hint = clipUrl && isOctolinkUrl(clipUrl) ? ` ${c.softGray}(Enter để dùng: ${c.mintGreen}${clipUrl}${c.softGray})${c.reset}` : ` ${c.softGray}(Enter để dùng: ${defaultUrl})${c.reset}`;
+            let link = await ask(`\n  ${c.bold}${c.mintGreen}Nhập link Octolink / Link999 cần vượt${hint}:${c.reset} `);
+            if (!link) link = (clipUrl && isOctolinkUrl(clipUrl)) ? clipUrl : defaultUrl;
+            await runBypassOctolink(link);
         } else if (choice === "5") {
             const defaultUrl = "https://layma.net/Kd1onyItr";
             const hint = clipUrl && isLaymaUrl(clipUrl) ? ` ${c.softGray}(Enter để dùng: ${c.brightPink}${clipUrl}${c.softGray})${c.reset}` : ` ${c.softGray}(Enter để dùng: ${defaultUrl})${c.reset}`;

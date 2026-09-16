@@ -8,49 +8,39 @@ const fs = require('fs');
 const path = require('path');
 const { execSync, execFileSync } = require('child_process');
 
-const CHROME_PATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const PYTHON_PATH = 'C:\\Users\\XUAN\\AppData\\Local\\Programs\\Python\\Python311\\python.exe';
+function getChromePath() {
+  const paths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe'),
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+  ];
+  for (const p of paths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return 'chrome';
+}
+
+function getPythonPath() {
+  const candidates = [
+    'C:\\Users\\XUAN\\AppData\\Local\\Programs\\Python\\Python311\\python.exe',
+    path.join(process.env.LOCALAPPDATA || '', 'Programs\\Python\\Python311\\python.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs\\Python\\Python312\\python.exe'),
+    'C:\\Python311\\python.exe',
+    'C:\\Python312\\python.exe'
+  ];
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return 'python';
+}
+
+const CHROME_PATH = getChromePath();
+const PYTHON_PATH = getPythonPath();
 const OCR_HELPER = path.join(__dirname, 'ocr_helper.py');
 
-// Danh sách domain đã xác nhận 100%
-const BRAND_MAP = {
-  // LUCK8
-  '216-2': 'tamjaibet.cc',
-  'luck8': 'tamjaibet.cc',
-
-  // H19 (bài 401 / 17937-2, 200-2, 155-2)
-  '17937-2': 'memberqq.me',
-  '200-2': 'memberqq.me',
-  '155-2': 'memberqq.me',
-  'h19': 'memberqq.me',
-
-  // Hitclub
-  '222-3': 'memberqq.me',
-  '134-2': 'hitclube.cc',
-  'hitclub': 'memberqq.me',
-
-  // EX88
-  '197-2': 'ex8898.com',
-  'ex88': 'ex8898.com',
-
-  // 218-3
-  '218-3': 'tamjaibet.cc',
-
-  // AO88
-  '184-2': 'd55slot.vip',
-  'ao88': 'd55slot.vip',
-
-  // U88 / Agobet
-  '208-2': 'agobet.cc',
-  'u88': 'agobet.cc',
-  'agobet': 'agobet.cc',
-
-  // Kèo Nhà Cái
-  '159-2': 'recsport.tv',
-  'keonhacai': 'recsport.tv',
-  '400-2': 'keonhacai.com',
-  'keo nha cai': 'keonhacai.com'
-};
+// ZERO HARDCODE: 100% Dynamic Domain Resolution via Real-Time OCR, DOM Parsing & Live SERP Probes
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -70,33 +60,36 @@ function extractDomainFromImage(imgUrl) {
   return null;
 }
 
-// Kiểm tra xem URL có phải là URL quảng cáo rác / nhà cái không
+// Kiểm tra xem URL có phải là URL quảng cáo rác / popup ngoài không
 function isAdOrSpamUrl(u, targetDomain) {
   if (!u || typeof u !== 'string' || !u.startsWith('http')) return false;
   const lower = u.toLowerCase();
   if (lower.includes('about:blank')) return false;
-  if (lower.includes('octolink.vip')) return false;
+  if (lower.includes('link999.app') || lower.includes('link999') || lower.includes('uptolink')) return false;
+  if (lower.includes('octolink.vip') || lower.includes('octolink')) return false;
   if (lower.includes('linkhuongdan.online')) return false;
   if (targetDomain && lower.includes(targetDomain.toLowerCase())) return false;
 
-  // Danh sách từ khóa nhà cái, quảng cáo, cờ bạc, affiliate cá cược
-  const adPatterns = [
-    '88989888.com', '88.com', 'casino', 'nha-cai', 'nhacai',
-    'affid=', 'aff_id=', 'partner', 'gamebai', 'nohu', 'banca',
-    'daga', 'kubet', 'shbet', 'hi88', 'jun88', 'new88', '789bet',
-    'okvip', 'f8bet', 'mb66', '789win', 'sin88', 'fb88', 'w88',
-    'fun88', 'm88', 'bk8', '12bet', 'v9bet', 'k8', 'dafa', 'dafabet',
-    'recsport', 'vi88', 'taiapp'
+  // Chỉ chặn các domain popup quảng cáo rác thực sự (không chặn slug bài viết game)
+  const spamHostPatterns = [
+    '88989888.com', 'googleads', 'doubleclick.net', 'popads.net', 'popcash.net',
+    'adsterra.com', 'adnxs.com', 'bet365.com', '1xbet.com', 'shopee.vn', 'lazada.vn'
   ];
-  return adPatterns.some(p => lower.includes(p));
+  try {
+    const host = new URL(u).hostname.toLowerCase();
+    return spamHostPatterns.some(p => host.includes(p));
+  } catch (e) {
+    return false;
+  }
 }
 
-// Kiểm tra xem URL có phải là link đích hợp lệ (link callback thực sự, không phải octolink, không phải camp, không phải rác)
+// Kiểm tra xem URL có phải là link đích hợp lệ (link callback thực sự, không phải link999, không phải octolink, không phải camp, không phải rác)
 function isValidFinalDestination(u, targetDomain) {
   if (!u || typeof u !== 'string' || !u.startsWith('http')) return false;
   const lower = u.toLowerCase();
   if (lower.includes('about:blank')) return false;
-  if (lower.includes('octolink.vip')) return false;
+  if (lower.includes('link999.app') || lower.includes('link999') || lower.includes('uptolink')) return false;
+  if (lower.includes('octolink.vip') || lower.includes('octolink')) return false;
   if (lower.includes('linkhuongdan.online')) return false;
   if (lower.includes('google.com')) return false;
   if (lower.includes('example.com') || lower.includes('example.org') || lower.includes('example.net')) return false;
@@ -108,7 +101,8 @@ function isValidFinalDestination(u, targetDomain) {
     'daga', 'kubet', 'shbet', 'hi88', 'jun88', 'new88', '789bet',
     'okvip', 'f8bet', 'mb66', '789win', 'sin88', 'fb88', 'w88',
     'fun88', 'm88', 'bk8', '12bet', 'v9bet', 'k8', 'dafa', 'dafabet',
-    'recsport', 'vi88', 'taiapp'
+    'recsport', 'vi88', 'taiapp', 'busbet', 'tamjai', 'hitclub', 'sunwin',
+    'go88', 'rikvip', 'b52', '789club', 'iwin', 'yo88', '.bet/', '.bet?', '.bet#'
   ];
   if (adPatterns.some(p => lower.includes(p))) return false;
   return true;
@@ -201,11 +195,11 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
     const setupResponseListener = (p) => {
       p.on('response', async (res) => {
         const u = res.url();
-        if (u.includes('octolink.vip/check/continue')) {
+        if (u.includes('link999.app/check/continue') || u.includes('uptolink.com/check/continue') || u.includes('octolink.vip/check/continue')) {
           continueConfirmed = true;
           onLog(`\n✅ [Máy Chủ Xác Nhận] API /check/continue đã hoàn tất thành công!`);
         }
-        if (u.includes('octolink.vip/check/')) {
+        if (u.includes('/check/job') || u.includes('/check/continue') || u.includes('/check/')) {
           let body = '';
           try {
             body = (await res.text()).slice(0, 500);
@@ -218,11 +212,11 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
               onLog(`\n🎉 [API Finish] Tìm thấy URL hoàn tất: ${finishUrlFromApi}`);
             }
           } catch (e) {}
-          onLog(`[API ${res.status()}] ${u.replace('https://octolink.vip', '')} ${body.slice(0, 280)}`);
+          onLog(`[API ${res.status()}] ${u.replace('https://link999.app', '').replace('https://octolink.vip', '')} ${body.slice(0, 280)}`);
         }
 
-        // Bắt mọi JSON từ octolink chứa link đích cuối cùng (kể cả /links/go2)
-        if (u.includes('octolink.vip') && (u.includes('/links/go') || u.includes('/links/') || u.includes('/finish/'))) {
+        // Bắt mọi JSON từ link999/octolink chứa link đích cuối cùng (kể cả /links/go2)
+        if ((u.includes('link999.app') || u.includes('octolink.vip') || u.includes('uptolink')) && (u.includes('/links/go') || u.includes('/links/') || u.includes('/finish/'))) {
           try {
             const body = await res.text();
             const data = JSON.parse(body);
@@ -346,40 +340,33 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
       return candidates[0] ? candidates[0].src : null;
     });
 
-    // Xác định Web Camp đích
+    // Xác định Web Camp đích: ƯU TIÊN SỐ 1 LÀ OCR TỪ ẢNH HƯỚNG DẪN THỰC TẾ
     let dbCamps = {};
     const dbPath = path.join(__dirname, '..', 'camps_database.json');
     if (fs.existsSync(dbPath)) {
       try { dbCamps = JSON.parse(fs.readFileSync(dbPath, 'utf-8')); } catch (e) {}
     }
 
-    targetDomain = BRAND_MAP[slug] || dbCamps[slug];
-
-    // Nếu chưa có domain từ slug, chạy OCR từ ảnh hướng dẫn (chính xác 100% của chiến dịch hiện tại)
-    if (!targetDomain && guidePhotoUrl) {
+    // 1. Ưu tiên số 1: Trích xuất trực tiếp từ ảnh hướng dẫn thật (Real-Time RapidOCR)
+    if (guidePhotoUrl) {
       onLog(`🔎 [Linkhuongdan] Đang đọc domain từ ảnh hướng dẫn qua OCR siêu tốc...`);
-      targetDomain = extractDomainFromImage(guidePhotoUrl);
-      if (targetDomain) {
-        onLog(`🎯 [OCR Tự Động] Đã giải mã đúng domain từ ảnh: ${targetDomain}`);
+      const ocrDomain = extractDomainFromImage(guidePhotoUrl);
+      if (ocrDomain && !ocrDomain.includes('google') && !ocrDomain.includes('linkhuongdan') && !ocrDomain.includes('octolink')) {
+        targetDomain = ocrDomain;
+        onLog(`🎯 [OCR Tự Động] Đã giải mã đúng domain từ ảnh mới nhất: ${targetDomain}`);
       }
     }
 
-    // Nếu vẫn chưa có, kiểm tra keyword
-    if (!targetDomain && keyword) {
-      const kw = keyword.toLowerCase().trim();
-      targetDomain = BRAND_MAP[kw] || dbCamps[kw];
-    }
-
-    // Nếu vẫn chưa có, quét domain trong nội dung trang linkhuongdan
+    // 2. Ưu tiên số 2: Quét nội dung văn bản trực tiếp trên trang linkhuongdan
     if (!targetDomain) {
       targetDomain = await page.evaluate(() => {
-        const textEls = document.querySelectorAll('strong, b, mark, span, p, a, code');
+        const textEls = document.querySelectorAll('strong, b, mark, span, p, a, code, .ctc-shortcode');
         for (const el of textEls) {
           const text = (el.innerText || '').trim();
-          const match = text.match(/([a-zA-Z0-9-]+\.(?:me|my|cc|vip|co|games|net|org|com|tv|in|top|site|club))/i);
+          const match = text.match(/([a-zA-Z0-9-]+\.(?:me|my|cc|vip|co|games|net|org|com|tv|in|top|site|club|co\.in|cn\.com))/i);
           if (match) {
             const d = match[1].toLowerCase();
-            if (!d.includes('linkhuongdan') && !d.includes('google') && !d.includes('octolink') && !d.includes('cloudflare') && !d.includes('schema')) {
+            if (!d.includes('linkhuongdan') && !d.includes('google') && !d.includes('octolink') && !d.includes('cloudflare') && !d.includes('schema') && !d.includes('w3.org')) {
               return d;
             }
           }
@@ -391,8 +378,17 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
       }
     }
 
+    // 3. Fallback: Tra cứu trong cơ sở dữ liệu tự động học trước đó
     if (!targetDomain) {
-      targetDomain = 'tamjaibet.cc'; // Fallback an toàn
+      targetDomain = dbCamps[slug] || (keyword ? dbCamps[keyword.toLowerCase().trim()] : null);
+    }
+
+    // Tự động lưu domain mới vào cơ sở dữ liệu để dùng cho các lượt sau
+    if (slug && targetDomain && !dbCamps[slug]) {
+      try {
+        dbCamps[slug] = targetDomain;
+        fs.writeFileSync(dbPath, JSON.stringify(dbCamps, null, 2), 'utf-8');
+      } catch (e) {}
     }
 
     const targetUrl = `https://${targetDomain}/`;
@@ -683,7 +679,7 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
         // 0. Kiểm tra nếu trang đã chuyển hướng sang Octolink finish hoặc API đã trả finish URL
         try {
           const curU = page.url();
-          if (curU.includes('octolink.vip/finish') || finishUrlFromApi) {
+          if (curU.includes('link999.app/finish') || curU.includes('octolink.vip/finish') || curU.includes('uptolink') || finishUrlFromApi) {
             onLog(`\n🎉 Phát hiện trang đã hoàn tất các bước để sang Finish: ${curU}`);
             isFinished = true;
             stepDone = true;
@@ -721,9 +717,13 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
           };
 
           const finalKeywords = [
-            'bấm để lấy link', 'bấm để lấy mã', 'click để lấy link',
-            'lấy link ngay', 'lấy mã ngay', 'nhận link', 'nhận mã',
-            'get link', 'bấm vào đây để tiếp tục', 'click vào đây để tiếp tục'
+            'bấm vào đây để tiếp tục', 'click vào đây để tiếp tục',
+            'bấm để lấy link', 'click để lấy link',
+            'lấy link ngay', 'nhận link', 'get link', 'lấy link'
+          ];
+          const excludeFinalKeywords = [
+            'bài viết', 'step 2', 'step 3', 'step 4', 'step 5',
+            'bước 2', 'bước 3', 'bước 4', 'bước 5', 'kéo xuống'
           ];
           const nextStepKeywords = [
             'click bài viết để tiếp tục',
@@ -779,9 +779,9 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
             }
           }
 
-          // 3. CHỈ TÌM finalBtn KHI ĐÃ ĐẾN BƯỚC CUỐI (cStep >= 5) HOẶC ĐÃ CÓ URL TỪ API
-          const canLookForFinal = (cStep >= 5 && second === null) || !!hasFinishUrl;
-          if (canLookForFinal) {
+          // 3. TÌM finalBtn KHI KHÔNG CÓ BỘ ĐẾM ĐANG CHẠY VÀ KHÔNG PHẢI CHUYỂN BƯỚC
+          const canLookForFinal = (second === null) || !!hasFinishUrl;
+          if (canLookForFinal && !isNextStepReady) {
             for (const host of shadowHosts) {
               const root = host.shadowRoot;
               const octoEls = root.querySelectorAll('.octo-capsule-container, .octo-inner-button, .octo-button-text, [class*="octo"]');
@@ -789,7 +789,8 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
                 const text = (el.innerText || '').trim();
                 const textLower = text.toLowerCase();
                 const isCounting = textLower.includes('đợi') || textLower.includes('chờ') || textLower.includes('wait') || /\b[0-9]{1,3}\s*s\b/i.test(textLower);
-                if (!isCounting) {
+                const isExcluded = excludeFinalKeywords.some(ex => textLower.includes(ex));
+                if (!isCounting && !isExcluded) {
                   for (const kw of finalKeywords) {
                     if (textLower.includes(kw)) {
                       el.scrollIntoView({ behavior: 'instant', block: 'center' });
@@ -813,7 +814,8 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
                   if (el.closest('[id="1lZHIw"]') || (el.innerHTML && el.innerHTML.includes('website-analytics.net'))) continue;
                   const text = (el.innerText || el.value || '').trim().toLowerCase();
                   const isCounting = text.includes('đợi') || text.includes('chờ') || text.includes('wait') || /\b[0-9]{1,3}\s*s\b/i.test(text);
-                  if (!isCounting && text.length <= 40) {
+                  const isExcluded = excludeFinalKeywords.some(ex => text.includes(ex));
+                  if (!isCounting && !isExcluded && text.length <= 40) {
                     for (const kw of finalKeywords) {
                       if (text.includes(kw)) {
                         const r = el.getBoundingClientRect();
@@ -850,7 +852,7 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
             await sleep(2500);
             try {
               const curU = page.url();
-              if (curU.includes('octolink.vip/finish') || finishUrlFromApi) {
+              if (curU.includes('link999.app/finish') || curU.includes('octolink.vip/finish') || curU.includes('uptolink') || finishUrlFromApi) {
                 isFinished = true;
                 stepDone = true;
                 break;
@@ -865,7 +867,14 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
           continue;
         }
 
-        // A. Nếu có nút hoàn tất (Final Button)
+        // A. Nếu có banner yêu cầu chuyển sang bước tiếp theo
+        if (status.isNextStepReady) {
+          onLog(`\n🎉 HOÀN THÀNH BƯỚC ${currentStep}! Đang chuẩn bị chuyển sang Bước ${currentStep + 1}...`);
+          stepDone = true;
+          break;
+        }
+
+        // B. Nếu có nút hoàn tất (Final Button)
         if (status.finalBtn) {
           onLog(`\n🎉 ĐÃ XUẤT HIỆN NÚT CHÍNH XÁC: "${status.finalBtn.text}"! Đang nhấp...`);
           try {
@@ -896,16 +905,16 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
           }
         }
 
-        // C. Nếu đã xong bước và yêu cầu chuyển sang bước tiếp theo:
-        // ĐIỀU KIỆN BẮT BUỘC: Đã thực sự thấy bộ đếm chạy (timerObserved) VÀ đã về <= 1s (hoặc server đã gửi continue thành công)
-        const timerCompleted = timerObserved && (status.second === 0 || (lastSecond !== -1 && lastSecond <= 2 && status.second === null));
-        if (continueConfirmed || (timerCompleted && (status.isNextStepReady || status.second === null || status.second === 0))) {
-          onLog(`\n🎉 HOÀN THÀNH BƯỚC ${currentStep}! Đang chờ máy chủ xác nhận tiến trình để chuyển sang Bước ${currentStep + 1}...`);
-          // Chờ tối đa 4s để request /check/continue được gửi thành công đến server
-          const continueWaitStart = Date.now();
-          while (!continueConfirmed && (Date.now() - continueWaitStart < 4000)) {
-            await sleep(500);
-          }
+        // C. Nếu đã xong bước và có banner yêu cầu chuyển sang bước tiếp theo
+        if (status.isNextStepReady) {
+          onLog(`\n🎉 HOÀN THÀNH BƯỚC ${currentStep}! Đang chuẩn bị chuyển sang Bước ${currentStep + 1}...`);
+          stepDone = true;
+          break;
+        }
+
+        // D. Nếu máy chủ đã xác nhận continue qua API và không có finalBtn
+        if (continueConfirmed && status.second === null && !status.finalBtn) {
+          onLog(`\n✅ Máy chủ xác nhận hoàn tất Bước ${currentStep}, đang tiếp tục...`);
           stepDone = true;
           break;
         }
@@ -931,6 +940,10 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
         const nextUrl = await getInternalLink();
         if (nextUrl) {
           onLog(`➡️ Chuyển sang bài viết: ${nextUrl}`);
+          try {
+            targetUrl = nextUrl;
+            targetDomain = new URL(nextUrl).hostname;
+          } catch (e) {}
           await page.goto(nextUrl, { waitUntil: 'domcontentloaded', timeout: 35000 }).catch(() => {});
         } else {
           onLog(`🔄 Không tìm thấy link nội bộ, tải lại trang hiện tại...`);
@@ -949,7 +962,7 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
     const lastCampUrl = page.url().includes(targetDomain) ? page.url() : targetUrl;
 
     // Nếu đã có finishUrl từ API mà trang chưa tự chuyển thì chủ động chuyển sang kèm Header Referer từ web camp
-    if (finishUrlFromApi && !page.url().includes('octolink.vip/finish')) {
+    if (finishUrlFromApi && !page.url().includes('finish')) {
       onLog(`🌐 Đang mở trực tiếp trang Finish từ API với Referer Camp: ${finishUrlFromApi}`);
       await page.goto(finishUrlFromApi, { waitUntil: 'domcontentloaded', timeout: 30000, referer: lastCampUrl }).catch(() => {});
       await sleep(2000);
@@ -960,7 +973,7 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
       const allPages = await browser.pages();
       for (const p of allPages) {
         const u = p.url();
-        if (u.includes('octolink.vip') || isValidFinalDestination(u, targetDomain)) {
+        if (u.includes('link999.app') || u.includes('uptolink') || u.includes('octolink.vip') || isValidFinalDestination(u, targetDomain)) {
           activePage = p;
           break;
         }
@@ -991,7 +1004,7 @@ async function runBypass(octolinkUrl, options = {}, onLog = console.log) {
         await sleep(2000);
       }
 
-      if (finalUrl.includes('octolink.vip/finish') || finalUrl.includes('octolink.vip')) {
+      if (finalUrl.includes('link999.app/finish') || finalUrl.includes('link999.app') || finalUrl.includes('uptolink') || finalUrl.includes('octolink.vip/finish') || finalUrl.includes('octolink.vip')) {
         // Tắt cookie pop nếu có
         await activePage.evaluate(() => {
           const b = document.getElementById('got-cookie');

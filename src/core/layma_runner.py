@@ -1,41 +1,929 @@
-# -*- coding: utf-8 -*-
-# Link4M Security Engine - Protected Native Module: layma_runner
-# Protected by polymorphic bytecode encryption & anti-tamper integrity checks.
-__author__ = "khanghack222"
-__version__ = "4.2.0"
-__obfuscated__ = True
-__integrity_hash__ = "b9c37ad8377b01bf736ea08b3ff610dcf2bce34632e727afb85a0368c200627a"
+import sys, os
+sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 
-import sys, os, zlib, marshal, base64
+# Tu dong chuyen sang Python 3.11 neu dang chay o Python khac ma thieu thu vien
+PYTHON_311 = r"C:\Users\XUAN\AppData\Local\Programs\Python\Python311\python.exe"
+if os.path.exists(PYTHON_311) and sys.executable.lower() != PYTHON_311.lower():
+    import subprocess
+    cmd = [PYTHON_311] + sys.argv
+    res = subprocess.run(cmd)
+    sys.exit(res.returncode)
 
-# Try loading high-speed native C machine code (.pyd) if available
-_pyd_loaded = False
-try:
-    _dir = os.path.dirname(os.path.abspath(__file__))
-    if _dir not in sys.path:
-        sys.path.insert(0, _dir)
-    import layma_runner as _pyd_mod
-    for _attr in dir(_pyd_mod):
-        if not _attr.startswith("__"):
-            globals()[_attr] = getattr(_pyd_mod, _attr)
-    _pyd_loaded = True
-except (ImportError, AttributeError):
-    _pyd_loaded = False
+import time, re, io, json, requests, socket
+import cv2
+import numpy as np
+from PIL import Image
+from concurrent.futures import ThreadPoolExecutor
+from playwright.sync_api import sync_playwright
 
-if not _pyd_loaded:
+CORE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.abspath(os.path.join(CORE_DIR, "..", ".."))
+ROOT_DIR = BASE_DIR
+DEST_FILE = os.path.join(BASE_DIR, "destination_url.txt")
+FINAL_DEST_FILE = os.path.join(BASE_DIR, "DESTINATION_FINAL_URL.txt")
+CODE_FILE = os.path.join(BASE_DIR, "extracted_code.txt")
+DEAD_DOMAINS_FILE = os.path.join(BASE_DIR, "data", "dead_domains.json")
+
+# Persistent Blacklist for Dead DNS Domains
+DEFAULT_DEAD_DOMAINS = [
+    "go88yt.com", "go88gh.com", "sunwinkt.com", "go88en.com",
+    "sunwinvv.com", "qo88.com", "lo88.com", "88yt.com", "smileitsolutions.com"
+]
+
+def load_dead_domains() -> set:
+    os.makedirs(os.path.dirname(DEAD_DOMAINS_FILE), exist_ok=True)
+    if os.path.exists(DEAD_DOMAINS_FILE):
+        try:
+            with open(DEAD_DOMAINS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return set(d.lower() for d in data)
+        except Exception:
+            pass
     try:
-        _0xK = base64.b85decode("8MH1&yl>UtA?<)U9Ez*8E;OxGse5{zoSxHj%7uKp")
-        _0xP = base64.b85decode("VQ%|7*B{OpxD8-@9;)LtF6)9=;4)shp5i$YfRVo(U5N(I7@BiF0E@`G7>mP&j(nw|gTS-|Nc059o!hT9r84<H?B<7#lccR$d*RleNduC*$9%>_kMKDw?cld8al@Sr>x2J_%SUd9@{8-WDqMFQM-lV;Q_>`)mGT2-<jHX{!%`+tWicNUZg+k%9JbZS334ENxUiZe6QE@U)0^kF=^mV3jwj1=VBhxV&tGfsrTyYn5Io=6Ly-dyh2ruR!YrH5{(Hyzc-WOMWiHWx_p$gkRyRnwbP@4bD<~HgMkKGJz67*&`P5-BRl$gMir`9EZdI7()#liakPUN;V>$n_b4P*z-C{x+RgS_{EX7wA8Hte#48bi=;IH1fQFlv}<e_nWRi*@Ix*%lp+GohwFwW?XK|$GxBRd#&SsVL|5Jx1mGa!XnPJDM^ATYmoym`+0GsH$>IZ7F!gD%t}p1XO0O+jjuooM-Hhrr?MBv==3ZAQ6cU&xK+uw)v!xJ7EBzD%<XA37lBr9S2CCj;(4Mp(N7K)m}s+cKj>=A=z$f0xKsvWo!zT(QZ+8f%TpI_Wz^3|}^NSs(0ial=js+SquzK*A@2XDR03U{sp)p*NW?w8!`b#nNM*zHZ~i*;ke}ZAnl_>IU6r@gt)E7;}(&P@frvMdBIL=D+s0z32PyD6x=)={DMl#mxu*Cm-h~oygN1DAI7et(@_OY8BZ|GkS^u7PO$<N&uwGqH;-;z>8{diZ{;Du>CNG`I?djk@4Xp(ML3Upsk^?3s95LC)7ij^SMjs7ny2Z0b}3!9MJremy%2l!F_)SKr9p2a|IaYqgI_#b3vo4*rXud5#UTf!IMVMJU_rwWW|qn&{E1r#s8fK!K4lJw&E*5?ddTI>I;aFR6g$}Fva$oEfdaki%;`Q@Yb#pGQNm2Z-ty0y0GYF2>9FB*d&@Sg`EIV(L=(zGjR$MkO_Ej&S3Er^#cqsuovdP!r{D2J_-!UM0R#n!(g&pQfQHq@0`9ho#=vh8zdYS%(wr7u-@rkU!`}DZ2H>L8w`>XV4Na!|6~u};q0*MDaIcHWw%s|3wi|j{hG8&#tLmNKcsvNK}^trxF$)<JW^QOlZ758@#eu4YsKF+G8#T%0FJ5cRdzzBr<bq=$l*PwefkbvZEJ`7^@^^(w*`RAU}j^l=}qUjDT0VMA(j-RdL1Sy{OBmN2>QRxcAfju;3PdzT_*{_l9-9^l4JPe1S!8>HwTWAQNWuCCxiW#4FbhFJ|te774;YYD5nkfe}dY%<~ce593$~3bK%xV27lmWf4%(s*Zr7KHnJq4?tyjt;>Z@fR8=1tt?>MlNJb-kZ<d+aSzZFY?Jb7%GbE|ZO^cdN){>As_?REpysfZLQtZjLiNPwAy<g*-^DJcp5%_k8@0LyYkpYn*llf*X6m`wk$P(gjK|{(DZO=B*lo)Lq?IYQ@?R++)9ofS|u19D>(5?Se0N7&cTm=Gimqj@YY)@JT(f<-CKw@FLlLm-s9FrNVzUho7f%RAa<zV)8UE`NdOkO6paoMjq$7GR+FPW+J%;`a_pUx=8$K-QyLh${>ssxzQD0=ecq>bmN?<|xj$~tNY_2#@ttVDNNLjb2B%aQ@M%f%hLFh~@7@M+2-E5Uh8A@Dn`O4hxO^4{ZKAeR4nvLA<h-?ve>fNEdcIy5rs-}W=%_-cWjbz%FSS#Q5kvml<t#)xMbhTE80c??c~Q@dAffloPqbJg2u`FQ4R4v}z_bH)-C4p*$q90tT7yV!z>Sq+VJM!U3WGC-1ENmwzKV58c(@Uizdc1nkYxaC1s-O@Z1=7aR~he$GSxoTCYzHOI0P>k}xt{ChR!*&<F>mzhS;vNc2rQ7}lh#%Mef*`L5v6KBII6uxSxBC8*aijxntXi&wIW-8l7)n6Q`RYHlE*fFph%<@W?@IfsL71q1&D)`ZanuzfO^lf9VO2u%rFq5}^E}HZQh9L^v<tTPhNMVPhTSi?i1DMT67dAq2^EwaArqwTTG9Ua;O45h@B%(nrEI`^)wc%jru~jmP_+=XNK%UhqeFw&hm7>Rtc@&SvV^jj-L1w@Y&pAgd@IaZP6P5JEx&Wo{%S&6qb7@B?_h3!o{GKy0Mc-JiLf?Zzo{YSC3eMZYa1_`)V6j4a@5SY$CxjhqfV}d^J5L69~Hvs$>ZQ{ZHx&G_)W5%!>>caZ*;@UIUr*(kf3N!K1=C9G!^p2{(%%Gt=K4b^P%zroznQUPk2!XL!qmTDtW1FgWACzBr?C&$eM&=iv1PF29N@>T#jXV-rMuCdFqM3ZkpwoRL}+>ymNa3OYYoG!NFdy>c@ahPb+^<9=B<r2mW6$_1OXE-tR9Li&hc0462hTLq6zv0q{Pe*k`{1SHE(&604;PgB3di1#$_as1u<PeO5kbq&9;+(i@7y7#gQ+wvf(8$)=4KDKvjUe8=W^;U0<;@9+6Gc8^S&R+p?It=SAnJ9idT6f_H$n-VkeFPEm9y8HP*L%&pue{nK)Y;-tl6WB&j-dXD&{POrDb1yK~tgW_Q_!pEZFx}}jjy34`hS(q>`Aq8Gy}?1zao2im$$b8bT(u|I$=NLh$}cO5Bk3kPV0Z8zV}uJKJ*Is(%HC?ys({bwvooA`K3OSd&9m;S?A)&5Z)xXGvl3}hsBApDC6Ey9qc-<%Z+r7dI?eM3r~P-?h`lx#S)@urs6p>pZ4M&u*3kfRyPEv02;<}*)1OR~3y_A?-I308)}1+*zKjv;pKhmU!z4t5DlO=7Ro^KamV?elXOS+qfzx%fpwA_B(~zruQ{4P#yxh2+RU*dVZl?zV$H>3OJS)kXAd>ZhGzmSr5b8s}Ung4C7UDRZx+2?R0otJ$F-PA>6}?s%aup%2oH}pefi^NWgnN@|y_TZk4V8Im!U{27^VoaF*d~Uq($M;Qpk5{sS<7MP`d4FwIVY5)%n*t&h=^w>XbxClcv!gP?hDP*4><2&uv!eFcz|j2PSf9@xqp#uE)<DLMD7j@+RtkuA%o6{HstR3Hln7-9RmOBtf|P?RjjOom4szbPvB&k^~u>9mH`<&quc6?ix-HzjZlK%RrYsC(e%4mvdpzHDu0pXHAzVe(rJaLn358~rwNN^S=uz}<F#4pO!5>|H9e7oe+rrnH(j+;=ffHba7pJAMS@8Rbk6R-Z73%f-tN_V*0y}`Kh>@IP3TG-%d4!oMRY26#b#}#7C5DctCZ$B!xFo|YHXcv<9%WZ=Ik)79lpH0%`kOe2L)qhjpg5G`lf|+eDW6xeEM@!YMt+#O6zE9mNRNkGVIf9)1#-MR8bl`t#PS+rwfPBXvJ-NHnF6xLgLTc)6e5i$DS8J4fNeFs<<YspaEJ4<OG`t0(&suKllF9wM$Vu8<<+o*peto-Cy@&sP2%5c?=At07*jj-gLHZ4Scq6;du8IHttp_33rB;2P<qd`}hqZK_H*WRV4b&eU=<QP8fI6y~cpDlbM{20q+?5pR8*EV^?0$o4Me2?8bsD-4}u!TFvOUckZ625RafpB4j*bEmixJbB?~*^(L0kKh+H?QKh8;#Zg5B%*El#d`79mXc%1RmM_z&ggH@@Dn~jIGGQ#An4+eWeBWUx@rFkS^nkncxVqf>iKE-QfeS%_3+xogyTg=DzXtg^5DU`RFZqdTb72CANbAGX^xN0q{Z~A}O6u+tsJD#M?WgQ02>eN0^l0eHpqa%P!Q+cEMtiBJ!++?|pGTbtHM+|Rn`)`puc^z(`FzqgQcY0Fui3|`da^=_i76#BRXS>t#GA+8!)SJ<7dYs5*TYsp+YrDozGm_fYQrZlZev<iP3Y%rRCuMqs08+cjw{t#Yc|>4vNG{hCwKfXWnaMprjeSoQ;_PjL<lX*m^M_kUBkKt!P1lOV^rmo&3aw_$0I#5Civr0hYs@$7Y7Ha=y2i>)EZ<`x`^ez?C*aLb&6BfhjIe(lw`2#F5I#mlkKIgda{S2K)NJ6=CKB#3fx#Nufl;I`yv*KR2>aOLC3?ViMn@N5fgID7JKwX`p*GjO2nuez0}}0^2a_>?2?oLLq{jXN!suO4DJr{D)DsfkTza~eT9T$qnPr}ev$QX0iZM>PfjVO-hD0%;45zH3iZqY|G)P~aoLpau<ss)Y4u)xWKCA}9{<rj`I_rD5Bq7lfNXA^Lp2;B8p>KzUo|5BcMFw?M|~SplrGkxCn5#)wy*`FdY5qw6bKIe(%N)Vw0>zqY26grDqI;*CU4Hg7HU%I=0|1$@ch)9yUWUWomJ(emryLU5~^iT;0X+Jn!So<9={Y1%h*ku>!=+wrXXfo{QLNa?kx?1rr&eM0H8nM6#GW{2GcS)5^Ti)ST8wXI)Q&qFx{Ms>Ge1*ff<|;Y3KSm*QwKkA&iktq5y11a2)hZf*1h67np4r?i$}C2P;?ar4bj*N$eq8Spq<A-O34LmqA)GBZJJtHHZzzFyLoYigG{$5&$qsDC#Q+RcyzP=Qz<eX8<KQVsYri@x8<)3C~v=9p_kf)dJwEvve?g`IPsS!`pgbrdber0g3F+sBYvcXr4!2c#aKs>&h+&zMR~jJ^aOir!R*Davgklyy-)HW10}SKg%U#Suh(X4THoW8#Nq!PZ}7iwW;KVota7c%pD0kL;PZ+#HvYIeV7dhI|K*q>%APdc{awV5IQ~dggMT%RU}S5Omml)4<q%Y88abQS}WgyjS|fh1L|CSBD66OtzeD<lB|bc0cu+E95Rmy<6tvak_i`c(t!k(iMg07M+5EYYpAQALZ=b`y{6~!yNrQoUYOK03pT-|lZQ6O|4kD0aE39qe~nd2jcyTrd08ITTs-r;Fb+Nphtbre^ze_r(&FrH6tG4+;^|<H=?BGaQ?WDNFau@;BC881ZRJGNjiY3Mei649JLK#fo6wB%(OeN7NAtCi5TZaYdW7IHc?%Uiv>grUFTb;LML-!<C&=l<UmiEfnq)BDRxe<ezvzyQa9)Bg3$o(cq-h-g0lsDpyoa>#H6;@CCq?F&(ss==YZ<=9Gqyo8m){vrWS5A$iMKXLO;hyLQqx%kXmt@?F#)?XAe|$f53@29o`a74s;Z8-VYTxy`BFEAbKNL8lq4MV^OJt);Fis|s&>7hJ%vTx0|!do(DGwIlf}A?AJB&@JXs9SbUkvp5Dw$)ZbJS`#&ABiih6o$>*qLf=F&@f$8)!!jAStz!}Mpe(99MwPMD1&R}ak1I5LZ*rb~d^2;eTcK2m=^GAg4`G`C$+c6wOt6G3bk?L3XV?(S#x?z?vmPcFtQFvxG0bqxHl$YxZNKFjMhUVOO6aqQ$TA9niK7KPB-k=_Qfl#ZZ6Z_vI5XsNx!_l-NfS@cn`CpStITQzBqU-gmKyEcONw1R(a0zmU^BX;T!TO~^q(~clXQL}N>qR;Yex`X4L+UCeOKq(ll=8p0`lbLMy`DJck)^0OJPo)#Zv$0}k2A*$jxs5NA@^?3#Tg|-$VoS=Z%J)K98Ad?=x?*odMlj;z8TS2^DsMXdIQNODoffAHVzZ)WJ7^p+$-Vqcga9khR}J(`gLs@IEpRMXC<3-dYbz<+SS!gEkub>|dPoD^QUuU}9-cGLiy`?7>C+g-jJMF7_xJmIqFFfxxGNU&cS*24!5rnkfFn2*Ap;J{abNp7*1kQ(v=B!^tnV{uOE`QCJ~~Ev|F}958QU>pK$ryndfe3asdb>!<=_M;n=i+z!^QSv)5I7gpkyb~$KTDRKh&&9&0?b$+AOT%%NP{Vlccs56c)0#G-XA2e`vIa?0QiE$OI)#&%L>WZAte0dJQGF`e`Q1{k*+5xI9q88GE2tDD}3|X?}f+2MC`8z>=pQ{><qZ{R%`RDhH{yzmzk4#++^o#$+9F4^}OpWeCUA*xqe@RANFvnh!l|X)jGhztxajpuDDN3#I?$;ts=l>o~*A*%$ihiXXL}ed!-IEB&wFAg6jt-O@j(?n1CT;iR49jiA@$>-ShejB>J9xQa)8M}>=8bK?{?4501H1gjF8vy+AN3&mHJw9W(Y7yl(p_x%`fe>~aR!<&ky&%Fuy(s+)^M0>0gq_a5is<GSm2lBAAM+S%|7?C>)4&;V!`ErdDBD|MI0)q&h`QT_`HpD{kR}gcjtt7{W9HP|MV)q5PTIxYI1r4u7+jlQ3!RE45vcN<XEtC83(`$e`51ClvRvWBOu^&BZSF&;-EClqI2@u=X=?<Y<+h$t?Apk~NjG$kn<Xmt6!07}o`Uk5+DLkRg2t;!>I1B7omi5I|2Nftns3}2Mw*$(HS)_}ywOzKC5kjJe52zs1iDa-6UG(*)=Rq=B;YdA5ldDyMbQ#kPDp|ieQXehRM5G#6C&l5pMi?&s<+P4Mav!@v^9U{q6L%C7Yb$>L^JU)XAai<*uD})FwhP-#P%ipnr9VGP^lz%}5$3GPOYo~jVENUT4>)&MBO5US9izuZAuv;jZOY>nj+P{6jt>5Pmevep8v;~q@<pk8rgah~$rRk?_;ops39E;UFcA8Qy3|H`Dm*zzy!fqXJD;YEaYX2SV45y6SaWzD5jg~(no6SYV#J)V^qur`!_+I2bdLSKE8*?dnCo>b8_DVav=-<_)o&JdN+Z)r+Uf^DI7Rl7q{!a}0Z_cd&joHdMHGUA*ZfbVoTuaVN~?%a4z}LkNYfIaPa#4>25PyvlhA1|tPoH3EpKfzc)=H5`c3MnOi-^qba%*<dLm`Ettf(voOU&w`v7{$ew0;)X(vBBqo&nky||jPt!be-$`d1E*@zf1$Ec<|f$a$q&gdPefZJjfIukM&lba&ZuI`7aZw*(lA8?&6un3GK+C%H`^~hlbn9eld*a2fojeMq|coksV3tv_>0YkT~xfUI($|c`K@qMrk=yF`}l<wxs#p!lYf1+R6l9wd!<IT{jN4ycpZr2TeQQA0c6n&mWwW$!~j*Y9p9!*SC_PekE<?c``o!uDN^Sdmp!p$Y1jrF9tbmB@-l*)Y<6E@+oMuu*CiJ*O<ivm}&i5}N<rRy0D2SxFHP2hS?L`;X2wL_Q9SBHtFO?wbhdK`R=3T*J*sCpE+C9a<%no4Hll(DS|dml=`QjZy`-%~`LPhRKP-Sw;WV4S|0G-?yOb{S~6Y8%D43a3#MM^@^NSqb)wiO0Rnq2X|ICLuvF?cKEFUPWMhfGlRghkNA_j6DOQGkxV;SnEoc>J~4bJ`)(L#(cWP7aEp)ljEA-rgF=^1o^R7mgVYz8r#Z|QAnlMkY9k>NeuwL<)Ba7b)TrFeBvyZn<Bh^IC5X>^KTC|BPihgwga{j5Va-wT$_G6x<DyOwNN)l@QsZOqX+6M0nIJrVnPhzI_44V?4dnwxXlCQ0Gp2<Gk~wwKl7KzZfttKMvj8e(g_hvo?<(wxl7?i&|IDZ{Gt7c>cL~7O%(QLc}NXVs?biRs1N6QC6Y?Et2BsUY7SauhVdZVE^AeH*wyhz4=9Ca8g68KG7LgoHH<#tLKCk*(YFP@ih}_5x4j`1Tbvr2Bu9Ep8k3AK>5XO+Du26ZKvS6oWnRed+?*#5-9!+VRa%}zf3w(#t*X!$7D%j$R}HF<N{Ban%==+!zvGrY_v~{4y><8>IObrhA5afPX1|56#-g4ah6E08o1n*K&Ph#W)LCv%L8lj9hW7x)t9Fz}bayzGIi_W{`&9@R!u-^oXECOz|L!dCw9|S;UT}vN%Ai$)2N>aP-<Cy!yN6XoT3anl>}i9SY{_dfy<<N`J2VO9Y_BP`=Uup#9m5dVGEIbrK3^G|?UYaCJH;TFQniiPrW@{}x%xM7{^oyNSce$kI}^E$yj3ORhvT$=t(|9uoe<y^qKmlc2g+2%p^dTiW6T$A<T4qr7K1GBwzV@%C`%L7a_gi{cO^Kx!7crF>773)l<Zdqm3B_oCIrP04khmjd1#geUA2njZ~_{}A2MTGc^w#`+t?!xmxXf4FD_z2l92RN$%X^m%?j4?CYYu(wyj&8lcFCU1nOD@sK0?yp;Z`_CT>)g=^XS95GF=7@~(Kw{6Q{FP-N2xjWJ<`ezw)T*1=U%>zyZrcs0Y*=Y|9#Ol}TnRhbRv|Jr*XO?Bux{6EV|uxzi=o_PU-y2DV@E&n^F6{(@Re3`V&5;RbW+oOzP84g7>v4LU@l_>}9XXoEDX*;HYnA)%9ZN%cLEEnVFVHUVg$<=^`vx$B=*KF~(nvRa{yL-kpE!YbmwEycdFS5=u_`QS$rV3MEY?oP?Ch*X3PqAzc#bxht;UZvMu5Q+Zt;hHAt-&OG4$tJb9JJ>L&1wnNhUmvP##=>TovOp4oUHHm=P(B?v`at-9t=A+4(p3gyfuJpb_QRe%MME=BoyxlAsB_>_+6zF!*gJ!iAweVs^g!E%Nx9HiaWP)JXFYC8mbY2-k+WQ?W+w+(-BjV*@T9uOZw1?aYip{oV`Ii-nc{)xJU~WfJT2Vvk;+2mVnmO5_#;Ks(89kdcK2m>E43(NJjb<snz*`mMV)82I=@Ixd-l8b)&xQYKcxPAGRfm9yBB>rJ@{*w8>1TwEi@Q&p62K#oulZ_9Vv7<QgpD`QhfNRp+r&gxXuPYjD`+fk;tXdWaK_qN)ck{Q?{S@*108C{8lDRR*g^D|E&^&%!Zv;o$D5@Bob2QZbR}&}1Ext1|RKZ;nhQ9M!CYvS2%Re4D0p%#Tk*cRq`CLVfw%?=>jz2=K1xBLL-`z&2z#c^MV$oPs`xA5+wJlMn_bF{O!3=mu$EP;=HxZH+d!+<6NdZWFKi+@fG6wr_zwy%!kFxJ9w^30pHtOUK(YL)fx0Ux0~^3skb@Ler@b$c9erq+M^v_@|<3nWGH4H*DeCmV^8D5Q40aG(KW!;7rref+}vvd=CFYgQ#q1A-03zRBR3qXXu%@D2|w0s_AokKkPue?r0&nk|YW%z`TGIev*^}%1nRa99P>bo@4IwvcT3k)rApxNLZzgspD?c{0i1Jo>4O5TtMk*1!Apnse)s+>%?YMptR}l<8rv%MP@v!t6I;*0b}X63q%w?)t&FBeF=}qCNPHwxs1k)-PGzzs~(8tVfOcUyrDr^z??P2jGEdmr+e+x!87NjY5s^4mgkg;b|x3Lw4Vccb!6ZxE8smv#S;$Ol1R{d{ViPyNpH3W^=Kkj5TlHfRg<*Fel&7!L6rl`TF7dWP_ZO=(nc*3rU&CsopOLo-#9GH=|EKu!ByO1QTtNm7Y5HGp~?(W9`cO-Y|J;ij<BZA*!UNES=}!e1xR`L0xNV(;JP<^5i=?aYQ1e`=(JwN+Pf!!uLn~u7+LzmOZqIE;zFSYnRgD(oi1Mhqw4YH=ku}7JgLzS`(9Z7o;%p;OE8YWfd57bb{!dwZT-`c;TIqgf7k@-LBq1apOa~@h&pCc42+JAgidy)LxfNJBJCuMF2vZsMYClOy6L46Pm~#T@xF9%pDC^X{Ne(fn1@VVJc`;b13nQ;0%oydh)C6fxWBCfSuZRKu8?F$7&6(J+(mWCsR%5hNxY{LL*-OZmx`iT(I=sqN41bG^=`kh5WsmmC|k%mzL$&ULuxX(mCEfEsC=-VLTUQzr$T{=LL|47sZ<3jF24`BArBeha<49>*K@%;!TCw0(ZlNa)xv=B1_8esQC|qaDy8~d22$3&G2{Doa5`mCRW!l+A!jo)HN3{WSuA(nXMW{s`xak{J0@KThRwQ?Ss(w|^MjGC#ouohR2<DC*5GUV#+H!l;{%Q|Q=>NoPJgpD!aF#dN0TEKICTh7-6xyG0cQytuqV@pOEPhQsD(hA?*f(4bh#Izm|JNI4A_w^!GWjHw~%3b!jQPF>!8zjHJPtW6A#qm;weXr<uI4JNiY9pw^T4=3%~vZLC2bGI4jH$tC+wPU5ibmETU|muV_30@$Uv!(R}y&fMS?K$vOzMXeB0F`GN09zi`Sdp&`!GHb=!*QF<55OS!Yn{Eek&*AyiWkf{|z?n;w(O;yJ~d8R`F-fAxqSZDPZDheGG{vi(?H3mn0n9RW197iI5B5vkF-Y#Q)Z<&+&=j6F5%s;gdy;k1j3DB`wW%vCH($NlT(}EKHava;>ZtXPkOO##1lJE@6*++L<(a5CBey#dMH8eOkOz+p!&d|U=gTms*9-(pPU7LEgVa{R9W1`cP&(mJ9ltv>2-z9ckBvL5NDCEX*q_nW*2@a~hF<dV4<)I51`YKo@J4j>*rk3*G$5*|Is`s!;^p9nEVVgaadL8Xxb0sfiJDzeN_HQ}(FmY&CASu+3n#9w)ryY5ANlkV|>z(P~$LGWYljYO$v_CK7`R3HhZo|VIxrqVrTm=&)Q12(&ym1Lm+3PLqk(~lzLM2_RIswx4ASt3PFfP`>RH=V9PXj-=A2f%CZ~eLD_#9fRwV{;JJ)8si`)8vt2hRLCf|>@i41W5DL0q8@oj#-97?U&^(L}%QRwpLK|3zG>XBgTf$t-)+e_|k1yH;st(fnSS1hF8gyf#?Bz2ZLHmTf#l!s&WeBqafaoOK&Itn);+U;+m}y)55`Iru>Ez`Mfe4!xN3hd<`H!;DcWemW~?nYk<J`sY!$^=C+_&aT@A61r1#2Q6WU<jysx*ebtLwHb%V%4OckHG4?EVa`+Vt5hH?0%04>^y_n^7>WG>62tafX*7<k0AtB^AMqss^Wvq1b~6BQxSwAZVoZpeYHy01pql7EjRXcRwrWkt5-fzytJcfh_dsE6NZ+UpOkVnPHUaf`j6+>GUqhAKt6%UBiLdLdh$NbPEO1QC6*54SKkgqJfgoCAoE}A_>5Y*&A2llj#+1V6cz+}uAi-rS5{HT9&v^ojlz;;qhVTN=W9tZt2{vyL+}i{=sLZV2sk#K%aMNum6_t^Ypb|7hQd3}Q&wgw!n`d9R52o5Sg`0<3xzt7j^lUQIf7c5<9&p8~*Hz&?rm{SON*iwGMUFo2IPK|`l{eJ-IHV$<_Uffil8mH!+)Rc5NVUR-8a&+8d{R~?YOoiD->F|oSZrL?EE8LfT7J{3X0cZtYDR2i>xfxP|Cqjca}K&*b;qx|69@)7g5Cj2He#<-c9dlG3V72W*6bIZTadxOYBdn|7&u*vITkjZ9II-hZjGn%R>9NGrsca0Dj3%aGE^}KD*bMR3)(P3O=U^2VT*?u3AZtLO{aO<Mph2t>8Muu))t&Xf`IDS+twRLmubX(lbR7FQO#y{oP2&%oD60SK<vFE+$n$|E25s?E_MX%mxC0Dbi}>d0k8E7ld{-|R>9wySDEMk`2Myd(0p$osv_0LQbKwTeIAmGfWm=*!%^HVmrH@6uE^NiHo$-z1IaZ#p^hOIh;&p{TksGQ8TZ$}r`F4Q=Q-3<nAnsn!3OtAJk~X37_sFbY_0%56i`D0;rOyq1oz|h_r;5*h6w_0OYVRm5n|JI(lp6G9nk#9i7FIpRvs}dCkDzzMQ54kx3nS9Qrs{W;qHPnsC6+n$2Z|ZMB=q;LLz^nJ?BNo6bnkPk7Y<tQnIJ@59gCFndTB~_8!82111cR2Ya0~U~Nc3ky;`_mk8zrWrIbIgF_SP?@H?QpGgpI5&D-3%)wC$PE-6l@RP<6i8_qOwPgMzSlAAH^40LjJj$!(XVZY}zePXL*WiOhdwy!4Jvtns9;9D6tW3LZ1r`3!dp%;hIV%yih-AjTG59ZH;zfeg&*lKBs@16V)X`3}^?3kOpYWBoMA4+~|5GcR)m}L+f)O{cH-^*A7+iPscrVM|jOHc%cJXLvZ`P=Vl&P~+xriA8fs}|#LWijamUs}V<9m4>U!^iq&KxNmJtV+8-U`w52+J~^>K@-rm4IR1(TE3~V{B6b|J~S%YG!{?+8j8v1xF@8pQTQ!l(<xkWGy|p>}r`R^%y2WmGQ_rPef}!K71rwsfW`=T=;5pi~b1Pl0X@pPR0+y`;)Ed^65v@ev~a@&X-6abj;+Qr;}OaSb>6IOM-${@U#D#a!F)$<_)QI*X9gmaAZ?(=oyLlRA)JBQK<v0wdw;oky#P?No5`hDjL)jD9z?SlIH@7#@jsmqMm0$N5iiZgRUCOK8CEaT!3N-j$wwtV>#ZlQ&w!TI!@ol*chI+Rpl>wCt>v@-E9}k8LYN>dWmkIh>-p?R}&CJ)e0~O$!Ay~+5TKJ>ARHJ4yVjz?`&sOTrfSkXIAC=u9}5RS`gY5>zNSJcp^8#2B|Qv36O9Zz}jBxw)Q!)aaT37GR+M1RFE~|nz$5Xf1i2TZ!I|YbECY<?=|PLKV_JXCvZwEY+YGI<%{L0zn{7k+iQ0GR(dk`O<=eA`_&`#2gj9RA1v5n`E(>@D3h8)#P&N%ahX4lp5}0VM`s$8ttsJy{Y66Q<V{7P{-zem$N;8g7sKDw16t3c94;5vdY3Hsf$I_F@82W2$Q|!SZ5>;;bu|FpHeD6@hCeo@Q{k`jsONsm;YnYFpFnRSj0r;&<D+1H4Q@*#xrI9V88iR}qZ{Ax&s7%y(XwzqxSeW>UsJ|-yhaac;~&3T>)7iS?0`9}Sdko!vlGRh;kE6164O&VF_iYQk@M#bO|=9g+Z?QO@_AFfCXV6B1`(-ePB=E2gUEXZ`%*MgSAI3=U*Rp8XK@S;Y9Me)7X>VNtUADe$n6P7h>(W4+W12?IThCDcx_I&_<5P!Rm7#TbJ454My!yk=PQj<XTX#&Hv?=PrTwv6sO=*F-kLcWu^<3@!1#yv9*(-mXixmE!A|OAqDq+7j_K1n4@z1<7&78~;kBWeW_Pus-Qb}DN=y5He2QnfqfnFF5V{qn{`w&%S~iNBuHg0<mKn-biMiC897V?0cRS;nrTEDWT}j#%ifnKNHPjJcc2NN!QGF=*(2C9Rq=h!|@Uz^Z9_ZUkON_!27`uxf8r&Mg@{C3ThN2NCJbMtEN|9c2r>TTxVex@tOXJDumzlVj8DSGrPDJIkr`O1qx)1nLAQMw*O48PsnGq3ey@RO^adviQmQT`;pPdXSX3xwZz)#>Mz{P@M5k#lmduV|aO$#`<ja^T`5h5n#y_A4bw##nrpGEWP`A7yzuDOWgFVQCVaRYX<g$BTH?{eZ)Hn^3Q-tW0ccv=cWzi=X9x#O^d?eA_}-_hfSGC<nTA3`RRQg~*-#EM%HNSO5Wxx?j}J)ZMdO#}7E44x4iFN*R6B(%LH9_LnL39eX3+p6_ZZJdC!LS?I>QfA=+^k5x@yC`j8xpbxJN!dad7k}jBlW?U}>HvXx4{*5I>-}%25S1x#K^0bNCA}Qazz*G_2rmN$x~hQ)K%y?u0m{CSXkG)KffxNO%2`XE&Qm6uw~jXFq8XOu4C1U!+CA!}Det|z&^U6vq_{cVDdx}XCEP4P1M$DGG56~=_*hkkBMg<lK;O*uD+i29)O_SZu93ky6bT&|cOqhbcw!(1ANY*3B{n!^2L8|P0%Q1ffqGe&U4fXxe;KgD%jeiZqO=)nyo_&SP|X)zW+DVXqMWwPX@S0LuOXhfm#us)1!$rh1=LHw!6Z^AQ_o2O<3c}ymXV;yepg{WI@4p|uMkU8w+}q;R&O3#0fXlO)pdp=zD4#0#tA98=3Y?!mPM5nr)^)N^(Cfnp?{Eztv7628syKiVv&ezgR$d;&6m~}o4HZZ7-k5w(3$_8TK@Ub=(8Ye-0>6J&$fXTh(QF4Mmkd(CViF$y&Sn|HFcJ&J5=OA=1xs~pIfq5+X23tTq>z<=H%Z+NwS70Z$R{w%0F7bLkk3}8I9c#gK(~^v*gK08_WMtRuhXiUGw5+2R7E!r;gC9$c2<hU_)|`kfg&cUcx4VB*Tv3j^O9h<wj`*NAr5l77gmEaeJO%0a<efCM?gbXO1iQZ1Oh8!5b8e>^mXR6PGv&0f9&>Cm-bOCVqkZZE)jB{?&1)PPz0>%jbg27YYE-HGgJK;h>y45}j2;*+6<Te5L}C6Fe!h0Fc2&J$A+~otf;+mV{!-8h5{4QJnPp1jVUmRre2^BwgoG<g!3~P|n6)o8;e8?<%Q)Ryww-8B+XYvb;?hJq6+rF%1OK_y=d~>gqzsq&yzefLl9-6a(6>56{*|-nvIHhUBG@lAk<{Qq^4B9I|*-rmU7Kuef!$X{Z?I*#$iOV1<6<cSaacz)xdc_U_}Esik_((}n=G_{8<-Fq#FoeBO~)kdvuU022bWxP_D2!CX%8`A{4vPF<j1RBG_*2Tu|gOBbgtpP{W;T?7EoT1=qnzMkUTB=R}FhkK{LI>&(d#PhEzwbsKQ{9hHINlu`6fdgdhf#Jbu1KH2E>y6iOWpb3Ycmld6vU0PBmrk}!L4o>FaM7LvtGGbd7>3&{`%4R8_?u}rUQ->B>?!yZCM|<5PGz`Z)l69HTzA;@TU`<9A4lfvxa|gVbA(lComcE+wOOAUJp}^!yQaS(!iRFYwJlQOOd|sGku;VyM(K45pl~t;6nm$z;*f(|62@YnPbyak3CVmu`Tta#p^g7>!KMQ)S3#b0J_g@{pjTF>ekIz%EIA!+;yS`uRM-m^>@cy#&j{x2dB^0`^wjNDUZ0ek`56tV??QAI|4n0_1z5;Ntjaqp_hd}VpsEGm(C*xfgU9U4JGj8F<l<PugxWAcu@s^&GU}=Xj8L?ep+6vH(J)%&J^?`(&(4(V0a#wWlq&Orx;<r2HNpla2!+z6TSDBQb4{+M(K@9DpF*B{h2r55;=SK4-RB!8=N;DSz8~+Hz_?ElQ3iOMYinN^{l^NH)0miDUQ&UO2RwxWEcXx@e4m1|=_;;W1fQoCl2w@r^~&xnG+dQG|B8>6vQ4-nR?$3R&Xy&Z;Jk_oqw_<&^IEfp>ec<r`8{uy(JFWaq^0T#Fn62>`_|*gaAY#Fe4I-lSIGvJw!mB;ho|~A02RA}h&wdA7a_Exz;A$wZj|MHCC6<8l`X844Nl3)IUHWV$2%<F$`09hY?{>Tn%A-9G`)ldt~H#+CmRg~25eU`Aws(uNqIqchi?kA<{H3j8|rj+7wjU;1E!NYP>Ez3QY;q0f2;Nwj-N>6(!t!a-hm|=5p@h{TAv)YeCnZCBrxGekI9G6b2Ux9Guo(~3W|+=Thd4rU+F7O%~NsV07cKq_L;!-a>5|DlB*ZO4EG!Sd%B}6$>gE5bm*)(^wDzzy;3l~;vRCXpoyI39LLHt_-)UyX-_j9buc8M0kUz&q>i<bIR;r=FGZwH8^38VOq;!H+OJfEI^9xPd`1RjEY!hA`9CH1Ti!Dx{81G4lROD~A;-m#4LFfIH&G%(h}9C!%b`j;mQ1CFs=sKOCTGkV@#SxySAl{8DejaKx0)fa@W_0iyIIw#nmYU|K3E2tK>&ntPZcIb00K5owR65mL&*<I?40ee0VTe0cJ&YX(QBhLlr|5bI;qf93>QS522IeZe2U*B%paCpdUbht?nlt{RFshPTGN;?DSV<hQ#-aA1Wn{;wNu>g!LZ`21A8q>!xk;RA5a>0n|SOn(q-)r@yebiVO%dl7A-qe_Oc<Gc2+#q4@tWp^aNTDO}kmF)e1o}^N~8J30<^Wo-Vta9qHSCfbO1qc^B#I$(GCb-Mp<xLrN~nB$`mxG6xUz^G`0FgenE={{g`r_TO~+&wSV1cl@Qh8m(lZVE4`CUcC@gkz|a|?ktv7xbyp8(GWo;lV~i5IPa^zr(bLyj$zH%4q0QltZ8dkp8<dA^<Y>AnT!k6=sI@5cAWpAC#`S_PV)K6)cDRFntFx!5>z3u@p_nO2|gD&n*Woh4yACxv7O~~+>l|FvmVkSv6QPah#$mJ@qo_APyv{g4x>@2m*u-+9RFI|!ijv?7Zz_rEp0xSrQ0LbWml_xld~Fv{5(X~bbv%`l~|`UEwU%viT?EHYhG`@jO2y7fsaG@cbEB6J2IPVXKRyF_tVDCv~iE0mjMcu7NXw2iH}3j|8i!|stZsRtSb?n-WyG!Ql*Lw(mY7BGdIb;K+-iy+&%uxL27yRcrog%RY3}Bsh$d>&#Q6YK!mM{V`95z*Au9Q`??c_@YLzWblQmXJtD|5^nalbmM#Va<B1<~ExK%B2G&PNCb@e9LEe8beB4zqNMvl(A)pvi0Kuw?F8?D716aQ!QJDO*|N9<S8A>zqu1~RK0qcRTql&}vJhe@f{`mmQg=v(p+u5;d>lqpC+fU-+%`jtgca*G*0#$o1BT^m@!5k90L7~(jS6PMM;nM=_M%;PX48*!_UR-~gL}F`<P~%jE2Z*>cZxt>QcHGD(8tR6=JU^+w5bpDoGbhhADH_SWxp!wFJ$;~{%bgR|80-G^K2sc8El>iOi@jfS4L9V<^81R3yrS0HI-Pf{z~iJTzj)!c>s+_y4P5+|P-DGgP59nHd`W4}40Xbkw4ct*qu(O#fF`#@p0-O>3#=}l8gPRDSCP~tI64bb9wR=nl>yoa^&AGI1SyZZmZSq2dG3ovq1@_O{-dyUWA>C7{kR@9TQ0gPCWpKv-VRQ$+*T+Axm${X^+ST3UB;H8!<AP_>D)eFLXfZ60gsfybXOj#zxRs-6`rb6Mp~7hyFK@N`o?I_?l2bp-r-C=MF#dE(-v35o||qiFg6hr-=4iV)?3F-s4Gn82VZN_L$NRD`PPnJV#J{rk6`r9LYm#0wnG97QXW6jfrGuTL-dUZ^ysZIN;2{XRzuAyvg!d?BpBgmVUqCxo>&B?yu24$rVn^p3Y)aIBsfbm%3eELPZNAS?mM8Y61HrXvPY3`5JEA=K)7>|wI4eW0?|gmn=KFF<$%B)tRjcKY}i`m^1+l8Td)3XPTo-ZE5JP7HiNjypQaUkJTe^q)A0^ENLfLn<tH5T-X|PRnB8=A40>|D(|FBM%+BQj9!T#(qMTtMrAGnKP)(S)@lu)Ts|N*}W|rSd>NBy5+j%A>iew61MrM^5HKzOfr4<0ZT&33>^dQsdJKD}NQ5=8_^P<3^SC9zYU}^Va6tgJ^J*-p9DYRVm2E#4I(tGbN?K|op`Z&_UOn14GJ7d^gfNZx7T>lxaUjSQc@1<SY-p2VnAhYK<xJjJL0Dd86AFNmY_i$-&`#UDS|M1(!H8XSQV$M8_7~9ak8!6cZIZ=csq*5Yeq1Fl$$j)TYDmvZ9w6upvloeWdl994pST3-{<2ql>n2-FV_7PFj`?M@giGz#8h8+{zE0!W=Q<?9py>S=sTI+ixQ5VsnXp+%+fA4$q%pUxH?8T4rajZyFwSX=qZ9dhl_ICe$W1?Ua1}TQZpt|$jDGb9B?!c(e`-hpq@$4jbH)j(BL^&_i?2(Q1;sCwea1g(k*%R52o^jM;THZ{wK0bfWF*J-Rn+GEeGZUaL!WPl`*}54u@^$`ee=(w}f71?fS7K!F_;ooB)G~3<)?6MW+8`CxW61!LhVntSK_V9`zT}@_ccOA&!OrVSlPLDg_`w#iqEJ25S=Pu&J`}L7SI9C}UbX?8yxZzry=C|SfoNH11Js+>9mU2`o<)`LSpg{3_6xKDdeiA9Gs14LVY&Jda@PO*mMMdyfKhg*7+fuAlzwI}C-bEdV*hl;WZtYT(`^czp!Fs$dqL#ySaYS3FPSLZt<y^N^?AbwLD=HgCT|VMVA7=yjyOHTm0TzkDn^Ve&~|EDL$ss5V;mySJ=+`qIxwCBJx42zzC_p2N1~>AokA$MIcE02RE(mgQ~t^qzkAs<3*|NG6D*ytnnpNK&t<s@VpD93<+`6R^-!+p)j8l7LHg=*JU-|PiFQ;Fg?j`U5{qUvW3=^qN|%pf!K^YwT|nM4J3s^W!x%hYB#>kgHN9mGA>Q6<tM>Mk0kb6K_1%J*<#h`n-Az2Qk<BBKj|=5*u~JwZK^@%x`5+T&GAodKVKrG1l+<ADe`?0O&Y)i679H<oU83NXHiL4itjmL_<p")
-        _0xD = bytes([_b ^ _0xK[_i % len(_0xK)] for _i, _b in enumerate(_0xP)])
-        _0xR = zlib.decompress(_0xD)
-        _0xC = marshal.loads(_0xR)
-        exec(_0xC, globals())
-    except Exception as _err:
-        print("[!] Security Integrity Check Failed on layma_runner:", _err, file=sys.stderr)
-        sys.exit(1)
+        with open(DEAD_DOMAINS_FILE, "w", encoding="utf-8") as f:
+            json.dump(sorted(list(DEFAULT_DEAD_DOMAINS)), f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+    return set(DEFAULT_DEAD_DOMAINS)
+
+def save_dead_domains(domain_set: set):
+    try:
+        os.makedirs(os.path.dirname(DEAD_DOMAINS_FILE), exist_ok=True)
+        with open(DEAD_DOMAINS_FILE, "w", encoding="utf-8") as f:
+            json.dump(sorted(list(domain_set)), f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+DEAD_DOMAINS_CACHE = load_dead_domains()
+
+def add_to_dead_domains(domain: str):
+    if not domain:
+        return
+    clean = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain).strip('/').split('/')[0].split(':')[0].lower()
+    if clean and clean not in DEAD_DOMAINS_CACHE:
+        DEAD_DOMAINS_CACHE.add(clean)
+        save_dead_domains(DEAD_DOMAINS_CACHE)
+        print(f"🚫 [Blacklist] Đã ghi nhận domain chết vào Blacklist: {clean}")
+
+def is_domain_live(domain: str) -> bool:
+    if not domain:
+        return False
+    clean = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain).strip('/').split('/')[0].split(':')[0].lower()
+    if clean in DEAD_DOMAINS_CACHE:
+        print(f"[-] Domain '{clean}' nằm trong Blacklist DNS chết -> bỏ qua tức thì (Zero Check)!")
+        return False
+    try:
+        socket.gethostbyname(clean)
+        return True
+    except Exception:
+        add_to_dead_domains(clean)
+        return False
+
+try:
+    from config import get_chrome_path, copy_to_clipboard
+except ImportError:
+    def get_chrome_path(): return None
+    def copy_to_clipboard(t): pass
+
+executor = ThreadPoolExecutor(max_workers=9)
+http_session = requests.Session()
+http_session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+})
+
+def analyze_tile_url(args):
+    idx, url = args
+    if url.startswith('/'):
+        url = 'https://frame.103-141-140-153.sslip.io' + url
+    try:
+        r = http_session.get(url, timeout=5)
+        im = Image.open(io.BytesIO(r.content)).convert('RGB')
+        arr = np.array(im)
+        hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV)
+        mask = (hsv[:, :, 1] > 30) | (hsv[:, :, 2] < 150)
+        mask_u8 = mask.astype(np.uint8) * 255
+        contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return (idx, 0, 0, 0)
+        c = max(contours, key=cv2.contourArea)
+        area = cv2.contourArea(c)
+        peri = cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, 0.035 * peri, True)
+        num_v = len(approx)
+        circ = 4 * np.pi * area / (peri * peri) if peri > 0 else 0
+        return (idx, num_v, round(circ, 2), round(area, 1))
+    except Exception:
+        return (idx, 0, 0, 0)
+
+def run(target_url: str = None, headless: bool = None):
+    if not target_url:
+        target_url = sys.argv[1].strip() if len(sys.argv) > 1 and sys.argv[1].startswith("http") else "https://layma.net/pohWNZgba"
+    if headless is None:
+        headless = False if ("--head" in sys.argv or "-w" in sys.argv or "--window" in sys.argv) else True
+
+    print("=" * 60)
+    print(f"🚀 LINK4M / LAYMA BYPASS ENGINE - TARGET: {target_url}")
+    print("=" * 60)
+    print(f"[*] Target LayMa URL: {target_url}")
+
+    with sync_playwright() as p:
+        c_path = get_chrome_path()
+        browser = p.chromium.launch(
+            executable_path=c_path if c_path and os.path.exists(c_path) else None,
+            headless=headless,
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--window-size=1280,720'
+            ]
+        )
+        context = browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            viewport={'width': 800, 'height': 900}
+        )
+        context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            try {
+                Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+                Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+                window.hasFocus = () => true;
+            } catch (e) {}
+            try {
+                const origTx = IDBDatabase.prototype.transaction;
+                IDBDatabase.prototype.transaction = function(storeNames, mode, options) {
+                    const tx = origTx.apply(this, arguments);
+                    if (options && options.durability === 'strict') {
+                        Object.defineProperty(tx, 'durability', { value: 'relaxed', configurable: true });
+                    }
+                    return tx;
+                };
+            } catch (e) {}
+        """)
+
+        # 1. Open LayMa page
+        page_layma = context.new_page()
+        final_destination_url = None
+        direct_redirect_url = None
+
+        def on_nav(frame):
+            nonlocal final_destination_url
+            if frame == page_layma.main_frame:
+                u = frame.url
+                if u and u.startswith("http") and "layma.net" not in u:
+                    final_destination_url = u
+                    print(f"🎯 Bắt được chuyển trang đích tức thì: {final_destination_url}")
+        page_layma.on("framenavigated", on_nav)
+
+        def on_layma_res(res):
+            nonlocal final_destination_url, direct_redirect_url
+            u_low = res.url.lower()
+            if "checkcode" in u_low:
+                try:
+                    data = res.json()
+                    print(f"[+] LayMa checkcode response: {data}")
+                    u = data.get("redirectUrl") or data.get("RedirectUrl") or data.get("url")
+                    if u and u.startswith("http"):
+                        direct_redirect_url = u
+                        print(f"🎯 Nhận redirectUrl từ JSON: {direct_redirect_url}")
+                except Exception as e:
+                    try:
+                        raw = res.text()
+                        m_go = re.search(r"https?://[^\s\"\'<>]*/api/traffic/go/[A-Za-z0-9_\-]+", raw)
+                        if m_go:
+                            direct_redirect_url = m_go.group(0)
+                            print(f"🎯 Bắt được direct_redirect_url từ text: {direct_redirect_url}")
+                    except Exception:
+                        pass
+
+            if "api/traffic/go/" in u_low:
+                try:
+                    loc = res.headers.get("location")
+                    if loc and "layma.net" not in loc:
+                        final_destination_url = loc
+                        print(f"🎯 Bắt được 302 Location từ api/traffic/go/: {final_destination_url}")
+                except Exception:
+                    pass
+        page_layma.on("response", on_layma_res)
+
+        print(f"[*] Step 1: Navigating to LayMa shortlink: {target_url}...")
+        page_layma.goto(target_url, wait_until="domcontentloaded")
+        time.sleep(2)
+
+        camp_id = page_layma.locator("#campainId").inner_text().strip() if page_layma.locator("#campainId").count() > 0 else ""
+        print(f"[+] Campaign ID on LayMa: {camp_id}")
+        if not camp_id or camp_id == "00000000-0000-0000-0000-000000000000":
+            print(f"⚠ [LayMa] Link này hiện không có chiến dịch hoạt động hoặc đã hết lượt (Campaign ID: {camp_id}).")
+            browser.close()
+            return None
+
+        SPONSOR_KEYS = {
+            "agilafc.com": "4AzF9IZh9",
+            "vijaylaxmigranito.in": "JkfFIYs4i",
+            "www.vijaylaxmigranito.in": "JkfFIYs4i",
+            "dunchurchsportsandfootballclub.co.uk": "4AzF9IZh9",
+        }
+        DEAD_SPONSORS = ["go88yt", "go88", "sunwin", "qo88", "lo88", "88yt", "smileitsolutions"]
+
+        def detect_layma_sponsor():
+            # Method 0: Direct fetch from /{tokenId}/url-copy
+            token_id = target_url.strip().rstrip("/").split("/")[-1]
+            try:
+                domain_copy = page_layma.evaluate("""(tokenId) => {
+                    return fetch('/' + encodeURIComponent(tokenId) + '/url-copy', {
+                        method: 'POST',
+                        headers: (typeof trafficSessionToken !== 'undefined' && trafficSessionToken) ? { 'X-Traffic-Session': trafficSessionToken } : {}
+                    }).then(res => res.ok ? res.text() : '').catch(() => '');
+                }""", token_id)
+                if domain_copy and "." in domain_copy and not any(k in domain_copy.lower() for k in ['layma', 'google', 'facebook']):
+                    m_dom = re.search(r'([a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)', domain_copy.strip())
+                    if m_dom:
+                        detected_raw = m_dom.group(1).lower()
+                        print(f"[+] Lấy trực tiếp sponsor domain từ url-copy: {detected_raw}")
+                        return detected_raw
+            except Exception as e_copy:
+                pass
+
+            # Check text in #linkWeb or #linkNoidung first!
+            for txt_sel in ['#linkWeb', '#linkNoidung', 'a[href*="http"]']:
+                loc = page_layma.locator(txt_sel)
+                if loc.count() > 0:
+                    try:
+                        t = loc.first.inner_text().strip()
+                        m = re.search(r'([a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)', t)
+                        if m and not any(k in m.group(1).lower() for k in ['layma', 'google', 'facebook', 'youtube']):
+                            return m.group(1)
+                    except Exception:
+                        pass
+
+            selectors = ['#linkWeb', '#hinh_nv', 'img.url-hint-image', 'img[src*="/posts/"]', '.box-linkFB-wrap img']
+            for sel in selectors:
+                loc = page_layma.locator(sel)
+                if loc.count() > 0:
+                    tmp_ocr = os.path.join(ROOT_DIR, "data", "temp", "layma_linkweb.png")
+                    os.makedirs(os.path.dirname(tmp_ocr), exist_ok=True)
+                    try:
+                        loc.first.screenshot(path=tmp_ocr)
+                        from rapidocr_onnxruntime import RapidOCR
+                        lines, _ = RapidOCR()(tmp_ocr)
+                        if lines:
+                            all_texts = [l[1].strip().lower() for l in lines]
+                            detected = None
+                            for t in all_texts:
+                                m = re.search(r'([a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)', t)
+                                if m and not any(k in m.group(1) for k in ['layma', 'google', 'facebook', 'youtube']):
+                                    detected = m.group(1)
+                                    break
+                            if not detected:
+                                for t in all_texts:
+                                    m2 = re.search(r'([a-zA-Z0-9\-]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)', t)
+                                    if m2 and len(m2.group(1)) > 4 and not any(k in m2.group(1) for k in ['layma', 'google', 'facebook']):
+                                        detected = m2.group(1)
+                                        break
+                            if detected:
+                                return detected
+
+                            joined = ' '.join(all_texts)
+                            if any(k in joined for k in ['go88', 'qo88', 'lo88']):
+                                return "go88yt.com"
+                            return all_texts[0]
+                    except Exception as e:
+                        print(f"[!] OCR error on {sel}: {e}")
+            return None
+
+        detected_sponsor = detect_layma_sponsor()
+        print(f"[*] Detected sponsor domain on page: '{detected_sponsor}'")
+
+        for sw_attempt in range(8):
+            if not detected_sponsor or not is_domain_live(detected_sponsor):
+                print(f"[!] Sponsor '{detected_sponsor}' không khả dụng / chết DNS (Lần {sw_attempt + 1}/8). Tự động đổi nhiệm vụ siêu tốc...")
+                old_camp = camp_id
+                # Bypass 5s countdown by directly invoking executeChangeMission() or fallback to clicks
+                switched = page_layma.evaluate("""() => {
+                    try {
+                        if (typeof executeChangeMission === 'function') {
+                            executeChangeMission();
+                            return true;
+                        } else if (typeof doiNhiemVu === 'function') {
+                            doiNhiemVu();
+                            return true;
+                        }
+                    } catch (e) {}
+                    const b1 = document.getElementById('btn-baoloi');
+                    if (b1) b1.click();
+                    const b2 = document.getElementById('btnXacNhanDoiNhiemVu');
+                    if (b2) b2.click();
+                    return false;
+                }""")
+                print("[*] Đã kích hoạt đổi nhiệm vụ (bỏ qua đếm ngược 5s), đợi tải campaign mới...")
+                for _ in range(25):
+                    time.sleep(0.3)
+                    new_camp = page_layma.locator("#campainId").inner_text().strip() if page_layma.locator("#campainId").count() > 0 else ""
+                    if new_camp and new_camp != old_camp:
+                        camp_id = new_camp
+                        break
+                time.sleep(0.4)
+                detected_sponsor = detect_layma_sponsor()
+                print(f"[+] Sau khi đổi: Campaign ID: {camp_id}, Sponsor: '{detected_sponsor}'")
+            else:
+                break
+
+        if not detected_sponsor or not is_domain_live(detected_sponsor):
+            print(f"❌ [LayMa] Đã thử đổi nhiệm vụ 8 lần nhưng tất cả chiến dịch hiện tại đều chết DNS: '{detected_sponsor}'.")
+            browser.close()
+            return None
+
+        sponsor_domain = "agilafc.com"
+        traffic_key = "4AzF9IZh9"
+        if detected_sponsor:
+            clean_dom = re.sub(r'^(?:https?://)?(?:www\.)?', '', detected_sponsor).strip('/')
+            for k, v in SPONSOR_KEYS.items():
+                if k in detected_sponsor or detected_sponsor in k or k in clean_dom:
+                    sponsor_domain = k
+                    traffic_key = v
+                    break
+            else:
+                sponsor_domain = clean_dom
+
+        # Check mission type on LayMa (Google search vs Direct link)
+        layma_body_text = page_layma.inner_text("body").lower()
+        is_direct = "gõ trang web" in layma_body_text or "truy cập liên kết" in layma_body_text or ("từ khóa" not in layma_body_text and "google" not in layma_body_text)
+        flatform_target = 'tructiep' if is_direct else 'google'
+        print(f"[*] Resolved Sponsor Domain: https://{sponsor_domain} (Traffic Key: {traffic_key}, Platform: {flatform_target})")
+
+        # 2. Open Sponsor page
+        page_sponsor = context.new_page()
+        extracted_layma_code = None
+
+        def route_frame_js(route):
+            res = route.fetch()
+            text = res.text()
+            text = text.replace("function automationProbe() {", "function automationProbe() { return { artifacts: [], missingApis: [] };")
+            text = text.replace("function webglInfo() {", "function webglInfo() { return { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)' };")
+            text = text.replace("webdriver: navigator.webdriver === true,", "webdriver: false,")
+            text = text.replace("untrustedEvents: behavior.untrustedEvents,", "untrustedEvents: 0,")
+            text = text.replace("mouseEvents: behavior.mouseEvents,", "mouseEvents: 142,")
+            text = text.replace("solveMs: Math.round(performance.now() - state.startedAt),", "solveMs: Math.max(3800, Math.round(performance.now() - state.startedAt)),")
+            text = text.replace("const state = {", "window.__qc_state = null; const state = window.__qc_state = {")
+            text = text.replace("async function skipType(reason) {", "window.__qc_skip = skipType; async function skipType(reason) {")
+            text = text.replace("async function submit(override, extra = {}) {", "window.__qc_submit = submit; async function submit(override, extra = {}) {")
+            route.fulfill(response=res, body=text)
+
+        def route_traffic_js(route):
+            res = route.fetch()
+            text = res.text()
+
+            # Dynamic flatform based on mission
+            text = re.sub(r"var\s+flatform\s*=\s*checkReferer\(referrer\);", f"var flatform = '{flatform_target}';", text)
+            text = re.sub(r"flatform\s*=\s*checkReferer\(referrer\);", f"flatform = '{flatform_target}';", text)
+            text = text.replace("var flatform = 'tructiep';", f"var flatform = '{flatform_target}';")
+            text = text.replace("var flatform = 'google';", f"var flatform = '{flatform_target}';")
+
+            # Force Solution 1 (1 single page, 1 step)
+            text = text.replace(
+                'randomSolution = Math.floor((Math.random() * 2));',
+                'randomSolution = 0;'
+            )
+            # Bypass incognito
+            text = text.replace(
+                'var detectIncognito = function () {',
+                'var detectIncognito = function () { return Promise.resolve({ isPrivate: false, browserName: "Chrome" }); }; var _old_detect = function() {'
+            )
+            # Fix DOM container null
+            text = text.replace(
+                'document.getElementById("xacthucButton").style.display = "block";',
+                'var _xb = document.getElementById("xacthucButton"); if (_xb) _xb.style.display = "block";'
+            )
+            # Bypass wait satisfied check
+            text = text.replace('function canOpenGetCode(element) {', 'function canOpenGetCode(element) { return true;')
+            text = text.replace('function isGetCodeWaitSatisfied(element) {', 'function isGetCodeWaitSatisfied(element) { return true;')
+            text = text.replace('function haltIfSpeedHack() {', 'function haltIfSpeedHack() { return false;')
+            text = text.replace('function detectSpeedHack() {', 'function detectSpeedHack() { return false;')
+            text = text.replace('function submitGetCodeRequest(element, solution, captchaPayload, isRetry) {', 'window.__submitGetCode = submitGetCodeRequest; function submitGetCodeRequest(element, solution, captchaPayload, isRetry) {')
+            text = text.replace('function checkButtonClick(step = 4){', 'window.__checkButtonClick = checkButtonClick; function checkButtonClick(step = 4){')
+            text = re.sub(r"checkScrollUpDown\w*\([^)]*\);\s*return true;", "return false;", text)
+            text = re.sub(r"checkClickManHinh\w*\([^)]*\);\s*return true;", "return false;", text)
+            route.fulfill(response=res, body=text)
+
+        page_sponsor.route("**/frame.js", route_frame_js)
+        page_sponsor.route("**/Traffic/Index/*", route_traffic_js)
+        page_sponsor.route("**/traffic/index/*", route_traffic_js)
+        page_sponsor.route("**/best-traffic.pages.dev/traffic.js", route_traffic_js)
+        page_sponsor.route("**/traffic.js", route_traffic_js)
+
+        visit_start_time = None
+        def on_sponsor_res(res):
+            nonlocal extracted_layma_code, visit_start_time
+            if "/api/traffic/visit" in res.url:
+                visit_start_time = time.time()
+                print(f"[+] Đã ghi nhận thời điểm bắt đầu on-site từ server LayMa (/api/traffic/visit)")
+            if "/api/traffic/getcode" in res.url:
+                try:
+                    data = res.json()
+                    print(f"[+] /api/traffic/getcode response: {data}")
+                    c_val = data.get("html") if isinstance(data, dict) else data
+                    if c_val and "không hợp lệ" not in str(c_val) and "Chưa hoàn thành" not in str(c_val):
+                        extracted_layma_code = str(c_val).strip()
+                        print(f"🎉 SUCCESS! EXTRACTED LAYMA CODE: {extracted_layma_code}")
+                except Exception:
+                    pass
+        page_sponsor.on("response", on_sponsor_res)
+
+        print(f"[*] Step 2: Navigating to sponsor: https://{sponsor_domain} with Google Referer...")
+        page_sponsor.goto(
+            f"https://{sponsor_domain}",
+            referer="https://www.google.com/",
+            wait_until="domcontentloaded"
+        )
+        time.sleep(2)
+
+        # Dynamically detect traffic_key from page scripts
+        try:
+            detected_key = page_sponsor.evaluate("""() => {
+                const s = document.querySelector('script[src*="Traffic/Index"], script[src*="traffic/index"]');
+                if (s) {
+                    const m = s.src.match(/[Tt]raffic\/[Ii]ndex\/([A-Za-z0-9_-]+)/);
+                    if (m) return m[1];
+                }
+                return null;
+            }""")
+            if detected_key:
+                traffic_key = detected_key
+                print(f"[+] Tự động phát hiện Traffic Key từ script: {traffic_key}")
+        except Exception:
+            pass
+
+        # Click the LẤY MÃ button
+        time.sleep(1.0)
+        clicked_res = page_sponsor.evaluate(f"""() => {{
+            let el = document.getElementById('{traffic_key}');
+            let foundKey = '{traffic_key}';
+            if (!el) {{
+                const s = document.querySelector('script[src*="Traffic/Index"], script[src*="traffic/index"]');
+                if (s) {{
+                    const m = s.src.match(/[Tt]raffic\/[Ii]ndex\/([A-Za-z0-9_-]+)/);
+                    if (m) {{
+                        foundKey = m[1];
+                        el = document.getElementById(m[1]);
+                    }}
+                }}
+            }}
+            if (!el) {{
+                el = document.querySelector('[class*="Ran"], button[id*="Az"], div[id*="Az"], div[id*="Jkf"], div[id*="DrD"], [id*="traffic"], .btn-layma, [id*="layma"], .whatoncode');
+                if (el && el.id) foundKey = el.id;
+            }}
+            if (!el) {{
+                const allBtns = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+                el = allBtns.find(b => {{
+                    const t = (b.innerText || '').toUpperCase();
+                    return t.includes('LẤY MÃ') || t.includes('LAY MA') || t.includes('GET CODE');
+                }});
+                if (el && el.id) foundKey = el.id;
+            }}
+            if (el) {{
+                try {{ el.scrollIntoView({{ behavior: 'instant', block: 'center' }}); }} catch (e) {{}}
+                const sp = el.querySelector('span') || el;
+                try {{ sp.dispatchEvent(new Event('touchstart', {{ bubbles: true }})); }} catch (e) {{}}
+                try {{ sp.dispatchEvent(new Event('click', {{ bubbles: true }})); }} catch (e) {{}}
+                try {{ sp.click(); }} catch (e) {{}}
+                return {{ success: true, key: foundKey }};
+            }}
+            return {{ success: false, key: foundKey }};
+        }}""")
+        if clicked_res and clicked_res.get('success'):
+            if clicked_res.get('key'):
+                traffic_key = clicked_res['key']
+            print(f"⚡ Kích hoạt nút LẤY MÃ thành công (Key: {traffic_key})! Bắt đầu đếm ngược 60s...")
+        else:
+            print("[!] Thử query selector click nút lấy mã...")
+            page_sponsor.evaluate("() => { const b = document.querySelector('[class*=\"Ran\"], button[id], div[id*=\"Az\"], div[id*=\"Jkf\"], div[id*=\"DrD\"], button:has-text(\"LẤY MÃ\"), a:has-text(\"LẤY MÃ\")'); if (b) b.click(); }")
+
+        # Chờ 60s trên trang sponsor theo yêu cầu bắt buộc của máy chủ LayMa
+        dir_w = 1
+        for sec in range(61, 0, -1):
+            time.sleep(1.0)
+            if sec % 10 == 0:
+                print(f"  ⌛ Đang chờ máy chủ xác nhận thời gian on-site: còn {sec}s...")
+                dir_w = -dir_w
+                try: page_sponsor.mouse.wheel(0, 150 * dir_w)
+                except Exception: pass
+
+        print("[*] Hết thời gian chờ (60s+)! Mở modal xác thực QCaptcha...")
+        page_sponsor.evaluate("""() => {
+            const btns = Array.from(document.querySelectorAll('#xacthucButton, #xacthuc, [class*="xacthuc"], [id*="xacthuc"], button, a, [role="button"]'));
+            for (let b of btns) {
+                let t = (b.innerText || '').toUpperCase();
+                if (t.includes('XÁC THỰC') || t.includes('LẤY MÃ') || t.includes('LAY MA') || t.includes('CHECK') || t.includes('XACTHUC')) {
+                    try { b.style.display = 'block'; b.click(); } catch (e) {}
+                }
+            }
+            if (typeof window.__checkButtonClick === 'function') {
+                try { window.__checkButtonClick(4); } catch (e) {}
+            }
+            document.querySelectorAll('#qcaptcha-modal, [id*="qcaptcha"], [class*="qcaptcha"]').forEach(el => {
+                el.style.display = 'block';
+                el.style.visibility = 'visible';
+                el.style.opacity = '1';
+            });
+        }""")
+
+        cf = None
+        try:
+            for _ in range(20):
+                for f in page_sponsor.frames:
+                    if any(k in f.url for k in ['sslip.io', 'frame.html']):
+                        if not f.is_detached():
+                            cf = f
+                            break
+                if cf:
+                    break
+                time.sleep(0.3)
+
+            if not cf:
+                frame_el = page_sponsor.wait_for_selector('iframe[src*="sslip.io"], iframe[src*="frame.html"]', state="attached", timeout=8000)
+                if frame_el:
+                    cf = frame_el.content_frame()
+
+            if cf:
+                try:
+                    cf.wait_for_selector('#box', state="attached", timeout=8000)
+                    time.sleep(0.5)
+                    print("[*] Nhấn checkbox xác thực 'Tôi là con người'...")
+                    cf.evaluate("() => { const b = document.getElementById('box'); if (b) b.click(); }")
+                    try: cf.click('#box', force=True, timeout=2000)
+                    except Exception: pass
+                except Exception as e_box:
+                    print(f"[!] Warning clicking #box: {e_box}")
+        except Exception as e:
+            print(f"[!] Warning waiting for frame/box: {e}")
+
+        def get_qc_frame():
+            for f in page_sponsor.frames:
+                if any(k in f.url for k in ['sslip.io', 'frame.html']):
+                    if not f.is_detached():
+                        return f
+            return None
+
+        last_cid = None
+        verified_token = None
+
+        # Solve QCaptcha loop
+        print("[*] Bắt đầu tự động giải QCaptcha challenge...")
+        for round_idx in range(60):
+            time.sleep(0.35)
+
+            token = page_sponsor.evaluate('''() => {
+                const api = window.hcaptcha || window.qcaptcha;
+                return api && typeof api.getResponse === 'function' ? api.getResponse() : null;
+            }''')
+            if token:
+                print(f"[🎉] QCaptcha Token Verified: {token[:40]}...")
+                print("[*] Gửi token lên máy chủ lấy mã...")
+                page_sponsor.evaluate('''([tok, key]) => {
+                    let el = document.getElementById(key);
+                    if (!el) {
+                        const s = document.querySelector('script[src*="Traffic/Index"], script[src*="traffic/index"]');
+                        if (s) {
+                            const m = s.src.match(/[Tt]raffic\/[Ii]ndex\/([A-Za-z0-9_-]+)/);
+                            if (m) el = document.getElementById(m[1]);
+                        }
+                    }
+                    if (typeof window.__submitGetCode === 'function') {
+                        window.__submitGetCode(el, '0', { qCaptchaToken: tok });
+                    }
+                    for (const b of document.querySelectorAll('#qcaptcha-modal-content button, button')) {
+                        if (b.innerText.includes('Xác thực và lấy mã')) {
+                            b.click();
+                            break;
+                        }
+                    }
+                }''', [token, traffic_key])
+                break
+
+            cur_cf = get_qc_frame()
+            if not cur_cf:
+                continue
+
+            ch_info = cur_cf.evaluate('''() => {
+                if (window.__qc_state && window.__qc_state.challenge) {
+                    const ch = window.__qc_state.challenge;
+                    return {
+                        cid: ch.cid,
+                        type: ch.type,
+                        spec: ch.spec,
+                        assets: (ch.assets || []).map(a => a.url)
+                    };
+                }
+                return null;
+            }''')
+
+            if not ch_info:
+                continue
+
+            if ch_info['cid'] == last_cid:
+                time.sleep(0.4)
+                continue
+
+            c_type = ch_info['type']
+            assets = ch_info['assets']
+            spec = ch_info['spec'] or {}
+            q_text = (spec.get('questionKey') or spec.get('question', {}).get('vi', '') or '').lower()
+            last_cid = ch_info['cid']
+            print(f"[+] Nhận dạng Challenge: {c_type} ('{q_text}')")
+
+            shape_map = {
+                'tam giác': 'triangle', 'triangle': 'triangle',
+                'vuông': 'rectangle', 'square': 'rectangle', 'chữ nhật': 'rectangle', 'rectangle': 'rectangle',
+                'lục giác': 'hexagon', 'hexagon': 'hexagon',
+                'ngũ giác': 'pentagon', 'pentagon': 'pentagon',
+                'ngôi sao': 'star', 'star': 'star',
+                'tròn': 'circle', 'circle': 'circle',
+                'chữ thập': 'cross', 'cross': 'cross'
+            }
+            detected_shape = None
+            for k_shape, s_name in shape_map.items():
+                if k_shape in q_text:
+                    detected_shape = s_name
+                    break
+
+            is_odd_one_out = (c_type == 'oddoneout' or 'khác nhóm' in q_text or 'khác' in q_text)
+            is_grid = (c_type in ['grid3x3', 'oddoneout', 'countshapes'] or 'chọn tất cả' in q_text or 'bấm vào' in q_text)
+
+            if is_grid:
+                target = []
+                full_asset_urls = ['https://frame.103-141-140-153.sslip.io' + u if u.startswith('/') else u for u in assets]
+
+                # Priority 0: Cloud Microservice OpenCV API
+                try:
+                    from captcha_api_client import solve_qcaptcha
+                    target_query_shape = detected_shape or "star"
+                    cv_res = solve_qcaptcha(full_asset_urls, target_shape=target_query_shape, min_confidence=0.55)
+                    if cv_res and cv_res.get('tiles'):
+                        tiles = cv_res['tiles']
+                        shapes = [t.get('shape', 'unknown') for t in tiles]
+
+                        if is_odd_one_out:
+                            # 1. Tìm ô có shape xuất hiện đúng 1 lần (singleton shape)
+                            singleton_indices = [t['idx'] for t in tiles if shapes.count(t.get('shape')) == 1 and t.get('shape') not in ['unknown', 'blank']]
+                            if singleton_indices:
+                                target = [singleton_indices[0]]
+                                print(f"   [Cloud API CV] Phát hiện ô khác nhóm (Singleton Shape: {shapes[target[0]]}): {target}")
+                            elif detected_shape and cv_res.get('correct_indices'):
+                                # 2. Nếu phát hiện các ô đa số là detected_shape -> ô đáp án là ô KHÔNG thuộc correct_indices
+                                majority_indices = set(cv_res['correct_indices'])
+                                diff_indices = [i for i in range(len(assets)) if i not in majority_indices]
+                                if diff_indices:
+                                    target = [diff_indices[0]]
+                                    print(f"   [Cloud API CV] Phát hiện ô khác nhóm (Đảo tập hợp đa số {detected_shape}): {target}")
+                        else:
+                            # Standard grid3x3 or countshapes
+                            if detected_shape and cv_res.get('correct_indices'):
+                                target = cv_res['correct_indices']
+                                print(f"   [Cloud API CV] Nhận diện {detected_shape}: {target} ({cv_res.get('elapsed_ms', 0)}ms)")
+                except Exception as e:
+                    print(f"   [Cloud API CV] Fallback sang xử lý local: {e}")
+
+                # Priority 1: Local OpenCV & Contour Analysis
+                if not target:
+                    args_list = [(i, u) for i, u in enumerate(assets)]
+                    features = list(executor.map(analyze_tile_url, args_list))
+                    features.sort(key=lambda x: x[0])
+
+                    if is_odd_one_out:
+                        v_counts = [f[1] for f in features]
+                        for i, v in enumerate(v_counts):
+                            if v_counts.count(v) == 1:
+                                target = [i]
+                                break
+                        if not target:
+                            circs = [round(f[2], 1) for f in features]
+                            for i, c in enumerate(circs):
+                                if circs.count(c) == 1:
+                                    target = [i]
+                                    break
+                    elif 'tam giác' in q_text or 'triangle' in q_text:
+                        target = [f[0] for f in features if f[1] == 3]
+                    elif 'vuông' in q_text or 'square' in q_text or 'chữ nhật' in q_text or 'rectangle' in q_text:
+                        target = [f[0] for f in features if f[1] == 4]
+                    elif 'ngũ giác' in q_text or 'pentagon' in q_text:
+                        target = [f[0] for f in features if f[1] == 5]
+                    elif 'lục giác' in q_text or 'hexagon' in q_text:
+                        target = [f[0] for f in features if f[1] == 6]
+                    elif 'ngôi sao' in q_text or 'star' in q_text:
+                        target = [f[0] for f in features if f[1] in [10, 8, 12] or (f[1] > 6 and f[2] < 0.5)]
+                    elif 'tròn' in q_text or 'circle' in q_text:
+                        target = [f[0] for f in features if f[2] > 0.75]
+                    elif 'chữ thập' in q_text or 'cross' in q_text:
+                        target = [f[0] for f in features if f[1] in [8, 10, 12] or (f[2] < 0.6 and f[1] >= 4)]
+                    else:
+                        v_counts = [f[1] for f in features]
+                        for i, v in enumerate(v_counts):
+                            if v_counts.count(v) == 1:
+                                target = [i]
+                                break
+
+                # Count limitation if specified in prompt (e.g. 'hai chữ thập' -> limit to 2)
+                if target and not is_odd_one_out:
+                    if 'hai ' in q_text or ' 2 ' in q_text or 'hai chữ' in q_text:
+                        if len(target) > 2: target = target[:2]
+                    elif 'ba ' in q_text or ' 3 ' in q_text or 'ba chữ' in q_text:
+                        if len(target) > 3: target = target[:3]
+                    elif 'một ' in q_text or ' 1 ' in q_text or 'một chữ' in q_text:
+                        if len(target) > 1: target = target[:1]
+
+                if not target:
+                    target = [0]
+
+                print(f"   ➔ Đáp án chọn: {target}")
+                cur_cf.evaluate('''(ans) => {
+                    if (typeof window.__qc_submit === 'function') {
+                        window.__qc_submit(ans);
+                    }
+                }''', target)
+                time.sleep(0.3)
+
+            elif c_type == 'order':
+                args_list = [(i, u) for i, u in enumerate(assets)]
+                features = list(executor.map(analyze_tile_url, args_list))
+                features.sort(key=lambda x: x[0])
+                direction = spec.get('direction', 'desc')
+                if 'nhỏ đến lớn' in q_text or direction == 'asc':
+                    sorted_by_area = sorted(features, key=lambda x: x[3])
+                else:
+                    sorted_by_area = sorted(features, key=lambda x: x[3], reverse=True)
+                target = [f[0] for f in sorted_by_area]
+                print(f"   ➔ Thứ tự sắp xếp: {target}")
+                cur_cf.evaluate('''(ans) => {
+                    if (typeof window.__qc_submit === 'function') {
+                        window.__qc_submit(ans);
+                    }
+                }''', target)
+                time.sleep(0.3)
+
+            else:
+                print(f"   ➔ Đổi dạng challenge ({c_type})...")
+                cur_cf.evaluate('''() => {
+                    if (typeof window.__qc_skip === 'function') {
+                        window.__qc_skip();
+                    }
+                }''')
+                time.sleep(0.2)
+
+        # Wait for extracted code (turbo loop)
+        for _ in range(35):
+            if extracted_layma_code:
+                break
+            c_dom = page_sponsor.evaluate(f'''() => {{
+                const el = document.getElementById('{traffic_key}');
+                if (el) {{
+                    const m = (el.innerText || '').match(/([A-Za-z0-9_\\-]{{4,20}})/);
+                    if (m && !/lay|ma|click|link|sau|kiem|doi|cho/i.test(m[1])) return m[1];
+                }}
+                const cb = document.getElementById('trackingMessageContainer');
+                if (cb) {{
+                    const m = (cb.innerText || '').match(/([A-Za-z0-9_\\-]{{4,20}})/);
+                    if (m && !/lay|ma|click|link|sau|kiem|doi|cho/i.test(m[1])) return m[1];
+                }}
+                // Quét qua các thẻ hiển thị code phổ biến
+                const candidates = document.querySelectorAll('.copy-code, span[class*="code"], [id*="code"], [class*="code"], .whatoncode, #box, #trackingMessageContainer');
+                for (let cand of candidates) {{
+                    const txt = (cand.innerText || '').trim();
+                    const m = txt.match(/([A-Za-z0-9_\\-]{{4,20}})/);
+                    if (m && !/lay|ma|click|link|sau|kiem|doi|cho|giay/i.test(m[1])) return m[1];
+                }}
+                return null;
+            }}''')
+            if c_dom and "Chưa hoàn thành" not in str(c_dom) and "không hợp lệ" not in str(c_dom):
+                extracted_layma_code = c_dom
+                break
+            time.sleep(0.3)
+
+        if not extracted_layma_code:
+            print("[!] Không lấy được mã LayMa. Kết thúc.")
+            browser.close()
+            return
+
+        with open(CODE_FILE, "w", encoding="utf-8") as f_c:
+            f_c.write(extracted_layma_code)
+
+        # 3. Submit Code to LayMa
+        print(f"\n[*] Step 3: Nhập mã '{extracted_layma_code}' vào form LayMa: {target_url}...")
+        page_layma.bring_to_front()
+        time.sleep(0.3)
+
+        page_layma.evaluate('''(code) => {
+            // Hook window.open to redirect immediately in same window
+            window.open = function(u, target) {
+                if (u && typeof u === 'string') {
+                    window.location.href = u;
+                }
+                return null;
+            };
+
+            // Hook resolveCheckCodeRedirect to navigate immediately without waiting
+            const oldResolve = window.resolveCheckCodeRedirect;
+            window.resolveCheckCodeRedirect = function(res) {
+                const u = oldResolve ? oldResolve(res) : (typeof res === 'string' ? res : (res && res.redirectUrl));
+                if (u && typeof u === 'string') {
+                    window.location.href = u;
+                }
+                return u;
+            };
+
+            const inp = document.getElementById('codeInput') || document.querySelector('input[name="code"]');
+            if (inp) {
+                inp.value = code;
+                inp.dispatchEvent(new Event('input', { bubbles: true }));
+                inp.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (typeof redeemCode === 'function') {
+                redeemCode();
+            } else {
+                const btn = document.getElementById('btn-xac-nhan') || document.querySelector('button[onclick*="submitCode"]');
+                if (btn) btn.click();
+            }
+        }''', extracted_layma_code)
+        print("✔ Đã gửi xác nhận mã trên LayMa!")
+
+        # Wait for redirect to final destination url
+        print("[*] Đang chờ trình duyệt chuyển hướng đến link đích cuối cùng...")
+        for wait_i in range(80):
+            if final_destination_url and "layma.net" not in final_destination_url and "/api/traffic/go/" not in final_destination_url:
+                break
+
+            curr = page_layma.url
+            if curr and curr.startswith("http") and "layma.net" not in curr and "/api/traffic/go/" not in curr:
+                final_destination_url = curr
+                break
+
+            time.sleep(0.5)
+
+        # Fallback only if still on layma and direct_redirect_url was captured
+        if (not final_destination_url or "layma.net" in final_destination_url) and direct_redirect_url:
+            try:
+                print(f"[*] Fallback: Điều hướng trực tiếp tới {direct_redirect_url}...")
+                page_layma.goto(direct_redirect_url, wait_until="domcontentloaded", timeout=15000)
+                time.sleep(2)
+                curr = page_layma.url
+                if curr and "layma.net" not in curr and "/api/traffic/go/" not in curr:
+                    final_destination_url = curr
+            except Exception as e:
+                print(f"[!] Fallback goto error: {e}")
+
+        # Check DOM status if still on layma
+        if not final_destination_url or "layma.net" in final_destination_url:
+            print("[!] Đang kiểm tra DOM phản hồi của LayMa...")
+            try:
+                dom_status = page_layma.evaluate('''() => {
+                    const th = document.getElementById('thongbao');
+                    const cd = document.getElementById('countRedirect');
+                    return {
+                        thongbao: th ? th.innerText : null,
+                        countRedirect: cd ? cd.innerText : null,
+                        url: window.location.href
+                    };
+                }''')
+                print(f"[!] DOM status: {dom_status}")
+                if dom_status and dom_status.get('url') and "layma.net" not in dom_status['url'] and "/api/traffic/go/" not in dom_status['url']:
+                    final_destination_url = dom_status['url']
+            except Exception:
+                pass
+
+        # Final check of page_layma.url
+        curr = page_layma.url
+        if curr and curr.startswith("http") and "layma.net" not in curr and "/api/traffic/go/" not in curr:
+            final_destination_url = curr
+
+        if final_destination_url and "layma.net" not in final_destination_url and "/api/traffic/go/" not in final_destination_url:
+            print("\n" + "=" * 70)
+            print(f"🎉🎉🎉 FINAL DESTINATION URL: {final_destination_url}")
+            print("=" * 70 + "\n")
+            try:
+                with open(DEST_FILE, "w", encoding="utf-8") as f_d:
+                    f_d.write(final_destination_url.strip())
+                with open(FINAL_DEST_FILE, "w", encoding="utf-8") as f_d:
+                    f_d.write(final_destination_url.strip())
+                desk_dest = os.path.expanduser(r"~\Desktop\destination_url.txt")
+                with open(desk_dest, "w", encoding="utf-8") as f_d:
+                    f_d.write(final_destination_url.strip())
+            except Exception:
+                pass
+            copy_to_clipboard(final_destination_url)
+            try:
+                import winsound
+                winsound.MessageBeep(-1)
+            except Exception:
+                pass
+        else:
+            print("[!] Không lấy được link đích cuối cùng.")
+
+        time.sleep(2)
+        browser.close()
+        return final_destination_url
 
 if __name__ == "__main__":
-    if "main" in globals():
-        globals()["main"]()
-    elif "run" in globals():
-        globals()["run"]()
+    run()
