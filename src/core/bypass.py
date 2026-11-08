@@ -1,41 +1,425 @@
-# -*- coding: utf-8 -*-
-# Link4M Security Engine - Protected Native Module: bypass
-# Protected by polymorphic bytecode encryption & anti-tamper integrity checks.
-__author__ = "khanghack222"
-__version__ = "4.2.0"
-__obfuscated__ = True
-__integrity_hash__ = "50d5f79ccf9dd2fada71d127a3f7662c23a9415865842301c53d028bc36e6ef8"
+import sys, os
+sys.stdout.reconfigure(encoding="utf-8")
 
-import sys, os, zlib, marshal, base64
+# Tu dong chuyen sang Python 3.11 neu dang chay o Python khac ma thieu thu vien
+PYTHON_311 = r"C:\Users\XUAN\AppData\Local\Programs\Python\Python311\python.exe"
+if os.path.exists(PYTHON_311) and sys.executable.lower() != PYTHON_311.lower():
+    import subprocess
+    cmd = [PYTHON_311] + sys.argv
+    res = subprocess.run(cmd)
+    sys.exit(res.returncode)
 
-# Try loading high-speed native C machine code (.pyd) if available
-_pyd_loaded = False
-try:
-    _dir = os.path.dirname(os.path.abspath(__file__))
-    if _dir not in sys.path:
-        sys.path.insert(0, _dir)
-    import bypass as _pyd_mod
-    for _attr in dir(_pyd_mod):
-        if not _attr.startswith("__"):
-            globals()[_attr] = getattr(_pyd_mod, _attr)
-    _pyd_loaded = True
-except (ImportError, AttributeError):
-    _pyd_loaded = False
+import time
+import re
+from playwright.sync_api import sync_playwright
 
-if not _pyd_loaded:
-    try:
-        _0xK = base64.b85decode("n}E}G3xs}=C(Z?Ldl_4pFN}RknuX4g-0p$y{AP(G")
-        _0xP = base64.b85decode("<60gGX6R+sv99(cSuhDY3&!6rL+q6%lr-Z7Kh&gX4V8*&y?9@!vE0HPXTP5Irs3|F*76-9<T~H@>xONA^&{FxgX2h0FL&5BoZsB5Av--frHdB{g`$TyKU17NU+|Rd2Z}&_`!l3ob$ORJRM{{9zEE0pxR~!Js@F5wPAi0(w*D)Aa(nxD>h5a&Q1gQIyZlk`)ToxsT5lhlGD}j~<Bjv4gt29pa@nWsEW+BHtjX12bDvx0L!cQ7$F`31lpQ>DMm@1s7l7>?f?umTU-64b>Vt|kTZ?Gva?0N(9WHdLfzv%OWwTXJV_W$lJ?<|~5Y(9Er%~cZH}A>P;GKE$q})D1(q)LO@=V9lFy2<i4M?UodilxCJjBfavCV>ZiZB>OW9Hbg1w)50q*H5M@bQuMa`}46N!0;&6m&V$(+s(%wj4h9RyH4^Mi58a{}4)TuYp^|r~^P&^<~exPCdZp$mfbFq^}f#YE3G{>eaR1z{Kw^y5apO7L;6?S(o)_IYmF-kI8$G>f5iAsH%_Z6{n%#k`s}gJ+B00&h&%&qM5f34USSnI2zwl=qV<J*<v|zVfshl?=Vmc3Ef;)QR`a8vDERp{lz?V{TH^*E!_=!>=%nvKjGH8vu>dXkBZ;)_Xs6u{P03?k=^3*+H7!o!&8-YRLPzAM4ppO*c?x}L(6OrzM=6zf$qpsv!VbveZ`I`eA596Uq^i~+&YCW9}J!;M|}wt3w~F<;SZDm&7*N;2^Io!C|I28b2JjnOKo!8$@b!30%r+Hp9sg%L?)1F=;QvpJAuygyGs1pZ47e*JuJgemTF7mHMRBuWeKbHTkb|F$sf-0jBSu#`Zs~0Z4J0T^@xn00Ly0+z6hXhavJOMv7$Rq7k!xYgAU_cIQJpkR0!^GyvrMJ5Hjbw!bQpu!P&W0&QjB-fCVtxJQ$Q@S0O-6_G0io%6!%2p)?zrx@T(^i{#LEanRHSqPT}Q+xa9!U@chIF&fd2PzLU|O?Dy6E=B1Qe5OT@QVatSvc&A`R)Ep^gq4sScof?RH|0$3hj;}Bd@q8mny{qO-hBg{Vm@pia~r7`uH*_PtF}Gi5?W{?=>e}_88ctGjy?iaJOW+e&nRz6BXL}b0HbNxa>$ziIr)JbJSo}~2+Z0YV)Epd#V!i^`KGW5lt@pYBM&a>T9P6mXz!N^R_Ql!`~mlwS{<;lsk+e4mZY-{tSOUd(uK*t$#|%_gFnNX?)3P5<VU0UlLNozDui(Br-|G%9m0WcYb0=pzwgbvpphOYczC0}Pozl)#q!kv<2u7~p!oKTBFmx}$GL5^foBo96!aDi=mO;gJW{K@(LTrn)-+Qj=GB#0W2@3KNHiqsrl)|i-?wv)r-B>T@pH~y<k}a0@vxvVZGt42n`_k%{0L<4ogTg|5p!%YPg-_A335O?=`=Fnafm64b@3jHF1Nj0rQu(Zoq!HiH7TF~$dc{P=Y#WMYX0*z+PcVL_ugk?V?=-{a)nO8`p<U4&_K7*Pg=K4;7@DxTExh(eS@FAhzBL*@_&G7c-xeNT$Fs((Vmg9iNy@nx8tyf!7LX4ncO8VB$!^aUGcb$8SboPg-#j68WTaiB$Z6*Bi&zM`(7noLM~v6u?H3rxtqSE*b_+)iFk7-z-=*9m`_4jC?*2*xacah@i@%w({t!e&~mLI_OPUz>NaHfNgBHF*WFkdToluOR$5WQk8UW?4E5$85?uMaZJL!*+>v&e^l0kmOQon(n3qPiRa+}pu^m$ut8yGfAG1@C$Xp_*Z6hPdrC8XX$eo3T@;ReC+1f-n@(yF)I1g{zP5GjNDDuxYCoPN@_K&w_t1rjxf<_azbwH(QvIrtZCfiN>?zxk?Tl7h@<3aZg0N_8C_peHTDJ}>Q?h+RHF4QRgFJ!X*6d)-Dr~xb{`iPLAL_2bgu{?gqCAeULZE7(9X(g(b#k*hKP#|ojaJWkUbh*?JXVKk4``aaa>gzFSCqQRF7O4|-aUqB(s=sj3spJlM1ta<D#L4gY4Tq2}Kfxti<ds9I_0Rb@AZbcP@qYd?`4QN-9$8auc}wX8#J47NwslCbqBG=d!tr~vz-&<Ln}MS-!<6L9za{#d+9uC&?IBvTF1rjB-bzA0HS=%BB7w%~qcf?{D4L)$^3M79NP9f8(h!h*n*G!IO^OIE8OBRV1)4rSHam`dp4xf%Y{fX9B>|*`MW)-mW9PNOprmVqleq=QFHhQ-Rx|jML}B*cNrqG%Y|0)SuLdl#HAD)HA8|7bVozRq1>0f>yMpdj+{@wN{tWO}SZODJGs&h&`pLzv79aNVqzQ4)J=G^D!C#YEI4fIZm&-%lP<?@oaZ}YC=L1i-+LMg41uqwtnT*gSOJGefstjz^z|qD$tv`Xl(~ug6c$l#RxxHK+d(X2y2Sz4aX?(Jr`#-YJDp3mAcpJ7HGOo<S*e*koTA0k;4wxU)0!S%y*>S}kFzWdP%`=MZ=;Ql{eOhN?;Cxr(^s9J@BrS?xZC}Ed(YFYA=pw_A5*xA<ejg%eK3L5;(lzA`k%`b~SgxV^nLbYxRB>NLBtf>^Z(rbcEgc`7dhY1bK-_=?xN(^apDS^_`sX?wLvphjr_1ka`E|R_gHq}bb{2Ms2QgSXFSq}JFay;nF2wGWWe?|1(GlYqq;cv@wHA-6&bJ|ex*nqgA4whiWiHhM&GJMV46Vv=R${dK^e;U~jRaYrR@H8cVF+@Pat#~)mh2GBh_ZM<JgX_{gVRu*tyw!%eNYJkpwFiy%*(!FDGrhX7$*}`5v?{0bo{|Zr5Ys^po}dk+f;?mgx2E>dY1`<_uY~-plXzw7)i^tcs-g5h$q_q#iKD3MH_|aQP9{ZUe9cg#VdsKiVo@@G9S!Q$f-o>$q?1VE5ztlRZN44IY$^Gr7^xtIJe|un}!h(f^tt68P1qQ>K1NtW$(X|W6T=jfhNCfT_R47c1;dyeuY$Ce;qKWRrXGUE`L(C;u6P1QDBuraBaUruMb^1S?%Nps}1(LiR62}9?IW(9l~HEl_hh&zoI9}h6*#g#M1WSvf$Xs@h}$;L@H&~SJAm3lC2QWv<$F7gRswalNDuO-;g!|CbPMk1tr4yyVlV<55|dD0@dXSD~ImM$4`5vGoSzwAdL#61<CI$(I~T;f8y)DGH;1tD1+}{YGW8r_N7?9BV?YuX;5dZJ05nnW6oq+eV}p2T;TkerStP1Q3}{vsij0&6y&s$-(IN-(kry3`$sAj)WuDF?o_si;I<iZo6!#HZU+WM1GV^jU+X#@ZR0F`|M`046hEb#02pe#4d8TF29}_t*$Fz`R!z<e@}4IS6CX=6`ceskaHa0;E1ae&F^ww~fVG}P!7jBMfJ~Esoaso#5J~~1j*Al!dd2<7{pvI=TLWEDEXf~Sji;vDu^LFtF8dM#eP=Y>GRSp{UL)&Swu4$3uxXp<xSzu<oUs)%{@}BC>(A94GL%}ZZ#<4PgK5vYD9?_*7{S02bbta2<AUt%?54+H!t!i(fF>Lr35OWa_1W9^Ud$4l%M4}f6L|_k+77ZUb+eKSf{hoH=0T`*`%$B!wn<r{XT>NC#z$Y?yrza|y{m&72KH_^`K@n~YsR$_dSl*}(Vpq3Zm$rti#QfXC^O&Qj|6Zc>Fb}0Cr&{a5OLz)s^z@xhB;$;!+_9gX>FxFT*bv=_V-Whs}^XEi@)AvYzFt_Fhak%0j;*IO}7+GtWqJ|M=~|eLQmfF{`fla^{1E2pNF~V>mb)XP;5snV?7ae^Au7pPBj&Si}<|yDiIDs6AoaRvQ<xzT{6yXLMN4TUtT(8=mu=td0?Ua5xNjB>~bp+u-=wlh-Qbm44aFH$QeJRVJ^t23=1MAMV<KzO*^s)pX%GAtV^yRGu~YJ{BN^E8=J4DRJNSXRKFS=o5i?XijYx676BU=b3*r3qY#AC%;FJ^%TGKm%gIz?2cSMrwvt)*m@vyc>G&5pvZ+0HsVVb(=rM>&LwnKgQ&TiYTCK~;<f)K1Im=sRiILHA$OcHdjtD`WceVX+{|m0&Wxp_{7;D|3X9w1EgH;s?T#&MHQ#NJ;kr!H^xyL8jBX0i4moxudKOyhh`AU;Dc@Yzn#+A~bc5h^--f@>>{KC)q8v^H*OI;a#yRbVTR55wGE31<pB<zC8CTKhmq<&b=FTOdV5n%tMn-0kP%->!e9K+z>QQ{I!t3ao+c%y{8qD4(CgBg**=DuP<AnKvTN`LF5Ye<a0&Em#v6Sg<wQ^Jsy|Hd~6n-;@Z+<iK_lL@+w^!=P9!xac^*km2=qr*+Rhu%^yRjE*Xm-W$Zbxc*b78RBR&Fck{N8UsS-zi5ejKHcLgU$Rj&3s!{jTS%~Rt@7MC7xINDei8gcH8MW8d9lJ=QyuTF45PAJ-u^#66i#$*MW2k?ory3M^;BN!(fSKI<u?SkfmPM;kHU%f>{_!;Hd1tDY3Bi_gC580(w}I)E+JyNp6ycOhmL(13PHWv3;2CL8>Lw1ubT)6Iyz`cm`TZlI0t|L7LBk<6M!Mb#qh=Z9dqco3-A;Bh*v@CXi^k=`QvDEum^T)I8YyPRgO(GY>ehNH$ykm)g`w!TX^vBZ+`wCGHmfY>I|riJgd`xYjiU=9elKEP++Ft_lyYra>NKLpGWP)MMFUvQ}Vc&sDf(+7ds@=!n;8YCnMFYMZRY&S{1bUM(Zy+5@(u-L%~%whszVys@1{ea?{$$|45;g|XsicNuv3!XIrGT^#F&EiwHF(J!5PaVItm&HVFa;j`fO6)%h5hfsn|zPD&)Fz|y}D!d6J@sS;`R~V!cKxHeT&VP*ssy?2;1q<d)HwDzzs3PB?dpql?N^V0IV<YNdcGIx#A<Xc~U46njYJ~U)PNGt)n2~7kYcb0s+;_IgxTte*(8U8qi+g~@C=0IOiSqk$BAIW=JjXu}kItA??rKCZWVaHCfYYdh_B@%^8u96p+ioI&v>dDj7ZnZ#tZ>ZKGfYR2vezK`#=A^D^E0)D_%ohu?QxT}PIl4i!f?v+6)Bg>90Hu^wD5yn(wA-xi=4lBBuD<^oRXFbW^Qkh5{vblq%mYpvNI*TZ@Y0tRmS1-pkDC@k0Ar(9@`R{F-|Zj*VWELUcpzRd|>zw*Rw#cycn+kraAJQx<xzxFfcDU?u;gT5Hw*9mQZX+1<y65{Nsg_vzTi6ub@H9W>7K2q(BmCAR2N(bJZ6<n<DLR)pBO8&)+J+;Jaa`a)Irwl@Xx#CvfZ_gwh)3u?<mv<A-0F+-Eg=;PdAdA>Z577Petfd}oz&S<eG5m)T$zhXpGjRH7)}uIvZ5?F`nmUqCVo{KCg-VZ!591(-SEfYR{a!$!<gS`sP4sr3%hD$j$KYKoLt!(LzdM-pg)R)zg3)KOJY?YxYPZrZ7!<xei1jBJf`Co^8ZU{=x%QPOE58Lja+gXToFOX3Wb8R#l>C;WqGuRpz_Dn!?+&@F5Dm%_-`Z^%GR_oh2dtCS(lP~sX-pa8|~XGu-9475W)6i9-^O6z~rmf3crj~&_u`2}UD4%m`C(>J4wPSzpHAsHj#r`a8@{7z&9dNs{8TLo@;CA_vrKM~8lR#2pRtY$dsYo9VYCi=e=EXE2!wk;-xbxb5qVSCG(&%uAy;OACcLgS}9@1>num7Mw|cdj&aYY@?o?y7jp%V?OxYfMMGI6DyCZw1-_f2cRo#R)S5um~eax&@g?N2d|YC#FTD=>KQR^$Wo#+n?lagPG4~$TSuLwn%7U&0MX5eqpfUI14Dne<eZ9eW;LfqXqP`oQZCtb)5v2YjbE&k_`-kUr#ka;ZE!$5sjAXO6*-eV2p9^b`yFYI_;^&o%%J;BaH>(1DaNt^qdQ!CB)AhQ9l%gO$5=pAdM`P&6mW)@ob&w5R39dX32R>Jfd&v82!|CD_;^7CJlEpC4hL$oQU=YO3dIEsp)WO(f7QJ1rxL>Of7Pg3l!;=&IqRlDk+=)2toyKqUR5_wZlDe;{zC~<ThP!IHotzEtuk%*;p6g9owuW$H&8JvyM%r)eA%wXKLeTua=m<NeN2)8JoQ(T|S9<*>n-~5d9bvD(@$^Ydq=sS7KC;#YhZ*_kDRv3-bA>p7W5;*7>nZI-5FRpVVL`^Z3;Z^6a$~ko5JfDcxUnsTXuNC%aje?j2z`{I1JFGsJYU&(9q&eWSHCWv;ejG*x;YXfP8)@|m}#8Bid_oi`-CWn;xS!!>la@ySP3nyL9kNBp+!+-^D!B#wYXm?42IA@>}T-3ZPqYt@fQP|R;gY_hzEr_8*%8o4kogyW`gpJ=xx{g&{_(h}oQ`p3-y^^FEW-T}|-X@ieOvDa{DJ>&Q%f+g647f>bd^_(W+6V|)Sp=^{?IHT-=&sA$ZJ8n++L?}9Xl%$aEMeg&hRa}SX14)eiBZ28G1CKE(<B&Awe8R&m9y>$vo~|-cKo9?MLXz*MPXGS=PTp%PM`jm+{Ux&h{Xn#rToMRMgY>7yo!-t^4Fi5iPI*Z{hYU`rQhx8l+rQMAUfG2+-K(YZ{J=kP9sK)P+a8mFi58u;D!B9Uhz<!h`hg=z*}2+R*RpL0x)hEXb=0h=Lfkct0}_2wRyWuZAK!EqlDcM#lg0;y1ZXi#_z(Z~wSHhABonlF4LfYdyFws`t`C_JG8X~?31}b+Nr)Tkt*&AH5ZI*YrMRkrlEHW72#f9HkwTCe<v+_N4$MtqYQ~Q@s@$BH8pWZBld40o+B01j%2+pb1rqjl+g~Xf{^C7KU3|=m+1=6V=+!Ad#qUK*Os*(lAY$pWo#RXi<ep(+g}KWS&N@yU343c^9QNh7VWrq{h`V_Ic;$1|q8^K0KS)~)R6ZSKfF{Q<_DcOu?+h9W`)A?Ro2|w#7X6&!jyGY9=Py3TelPG)jS)$m2GD?;YUb*68STw-KJD&MmV7!Yif9S9c_o=B8|*zzBYK8i<7x|#H<8sl@3-P5@~KH}Xq>|Ysou>Q$t7@!t}{gCnCN=1KPDH1ubV0@!DNL%LfOJ4VD`ye5H?YZ0d|D4)6eZvoY@rk9&{hTbT&E_2aBw%4PbU~L|f|ZM&1}weEQ2eY#>!RDUR^YT=9>x!)ghv|3R?qwx@-O!$pr)8#K!QMhW{(N@vjjZ=k@t_Ck^+`TOS1ii;fgdY`dOIeVwDAJji_5s_bB3o14L)hQFxaZ>edLxo7HaZn2@;A%=2{ymI~5kOD(w1IAMK~zO)EadWsK~>7o?z!Q&3r9mMxR6s&JN3zq>2P$*?waCuYRJ+u12>%pLS|j;!NUIH`SJ*%4G%770b^<6ql$q+T&N>l^lTT=FNwtlelBH0;MIK+Iys3$+IC|-`VYwAe15(D<LnVj1JA-t5~O=Q<kf?Gy^nIJTrFa(c!SI+9T~(-l0nbqHgh)gRT>gm?WquqAs~{ZK){MWT)4=RhesWxC7+<Jo9&{+6Q8O(7owL-jT9Yr0PvmKHo*i7FAFe-;%@UiX6LRGl50=vXq7Gs5_fzU0?o`dDN$mgM3`7)X3RXUW#S$t;6T5>{mc+wJh|S2__+1XHn$S`a!Sg<8^F<L=!{B=&rqK-)sUlX8ep_aQm`;ck6^F<pTyYIo11&n+a@v1<btki1BZ5R9+?O>X0hNa^yVJHgO0_<e5OiXhi!??W)Aauybk}?tXs-KSB8!_M<LAwGgZ^ZWwO&6gXK{vfyk0nTlI^M_CNAhk>zV#;|~Q}nN`oRK3xjvw^;f90zWq2wgCt~Ku3q}+LfgT&Qsg4HApT#32<B}GGqMjoJh<5_8?-HKd5fuqT(Gm1-F#$x8SpW73zQ?6InB?J4=#)>bJ{!kn1n)1zO-ZGtQC;;BdVlqDzf?8AU|niTlLcAw@MXFQ+wf;53}uVYMcdE`NTMv>ZV%(=OLY__8)-W!Hk0o%`QxFdN=7rhW8A?sUeG4H;$(Za~Yg=mr-i*nU8;CvK(XaYgh)bzH`gRU-!sIe@=-=_iuI;wzbS*G;Uw;1N8ntV`>&w}7lrQPLz7=7UgFmC>uv#p?`9P=A*VHLnx1Rjnc?zr_}oH=b$H7e4AcN|rZJ$-$(>-x3@z)HI%%*LyX-bgXxzVAHj}Fkuk{3_!c<f=!9!Wxe8nf@R0<P<=+mg(RJ~@};{*PA7&66%1iHx6P6HXKXi8K^6$+88$zF&@n||l;2e`wwAbXgTGx~btdT`JsR8YKdg-m?RVW76zW&?`%S~lZ!KIxV-}fq+0_XRow?DIY$z0Fx#p6$MgO%0*LHbQBTb$)wPtY93}N;@N;%svCtOoH2X!leGV+?1oS(q6QEzPp3tM8tKXiz~;w`Aq*_`un#yuu*m*1ue?#D7enuBlcOy9Yx%6}#H`fwr4f?c8OkmA__vo;&zQkm`~+&Gx6pCmc=3$J|zg2!tLIUPCnQ22_*b|7mf7jKKIxvF6<AnbHVws)R%;gnWp7o3c<wal&C6TVlGw$FT-LL39wlz}vqNnhA~cSb9{RDG3mE0h#K9jQ@<Y6QMtVjnDF(z>{%e#`2F^uVhp&krqlpYx@j*$Px@z&Bx#aSq!3C%*9nO+oQFy1C{tPh*&@>v}k~cB>SV9uj5ci7O(i@>NWwok1BRKpGd$I0<I`ifbeCK=2{D)mER{-Z;q1)Rd<QT|j6%pFh@rDb6do3lOw<i?eKYmEW4pEf>&O5*e^MtgPR2RbB`e<4|#WF2Pv6GMfXCXg;Wr-4>g`(r^A4MFa>k=%1*mQ*S>tZb7Q9pG320rfxd?k11LB%%5peVx*czzW%A@ql;jw(m>s%#Jn1<?S+gw-0$T;MoEjJAH)hX7bS+*3PoF=K#}AZn28De+_n_1>=WB6G@(jEHhCp6)#h8_g_fx65&ad4tmNjL>XN8W72a&zng^q?-V*Y{FS(^r>OLugQeP#Fuone}hmAb0)G+}r&2z7cQMqO7?g+cUpywK7?Vuk1IfLWbRybP4Fp#-vfVCy=P<X)5^{Q!+UjMC2Aw`aX*?dL^fKUJEL{X4T11?FeN{ug+1_In?p4qj=-muW;<StRY)LKm<XG<MWtFqT?az#=@M_x<dLc_md`npGkNU<dJuKqhHlK2MGjwMdJjy$kp|7z2v30~*-&kzpFv2X5pNm+GG&{Qx!DDl9i7>#GSB}U0uPZ_6#<Gj>N1VY8lhm3o{w)(T@R~vI*8gdpwb(toi;5*3dVMl<Am=jNBPj0RmBsY=jWsa9FvM$a59`9DIkEx|7&RBA%Cm&2zg>`LK-uNCoo~^Lfn0PokmZPMWE$I(JHI?aa_{a^w&r+g4%2Q#~pbw9<(CY6XIcnP}Y=2ratt0S`DHo|=@1K7TNAM{|7>`V8UdG?-t4Z6E)S&{cm7NZZ5<e!5#FlKT^O~kV4TU%%?H`OYPhjE(&T!~ErvLPANC;4eDa@U%kr&AK;uwiSyZ8=IPLx$A@>%*atv%UY$dJS?nnR^oTESa7N0`=Zc~<;-7YM8_*7Y$R#m;jyRMox4I<xZu4FIqa_p1eW<_+s_PNLxURm9B49zPnI2uuh4G#lL5K7S|*TEq}1Pb!lBNg+h?K$(K11ERMvFn0e~h|Wd05;=Peu%=wJsG#9L-0c=9RZJ=lPb432v&f|^G`G*pG#D0nYxr@^s1u;dGEw(|4fi80yQH{}GF~{zrxBy;M`pM%!!z_4y!K!Z=$|uS6F_)=s8jY3Vv=;KY^Ft&@bJSB^YrikK=G?E`SGH-S{r7qLPES?aud9UK@RTCue`&!KrQ!YLHCZFqdx3F<EfwF;J5G+%{Sm$!q?}I`)Srg8A4a66WcAWMz_|IRFlENp_eGHCY3<QvgZztY+FNW#@=tlf??@lS55?IbGdJ*lg{&%%znr7^KGg(9}pL`{vTg6hp{3@DC?@wGf=47wQ<SXqbR?89WjBTbL&;ino&(g9NM7!zybhL%8OFiFa^i}7rz-JIV;5W>VU6A+)6D+s8i|eLZPFJ5V?GP5lKUs&JVJRduzfM|Ic?y@@nYC8KTiXRrzmh&FCu66B1N1BjUFyX6;<3^w!*DO?(g!vz@kmi(wc~#l8br>^@L-!T-6`y-jZavh$<;Tou0)k9UqkddDbZ=}`4%YXWPdnxb=0jX#I~k}ypPqkx!`$E77uM0CWRqG9E4rD=~mquxfpIqTobH*7>oh%w+sX49<0;5p@Vu`2f`6B^h}^(?pe{KEEF4G;;YyVcbY4FekH8SG&B1N*B%pAgpj#_~SCx?nX1a9R6@+9?8mtNwOQq?)d+Bp*fA4+(<iAz6`b%W~Y~%96%t$ms&2i|S;u6x>IeY6qV`2sz#W%}?YN4{zctHQ_JcKAw9oeBfUh-GzRL2ep*Xbl9ZC?Pq|bm1THxmh{a_%}}Yk1b7_SaM&kpA;^&^w#Zteqk7LL=TW^kE?GTnSAElp!mpeFMb1SSS0e9kx&12`8F*qA)OkemTYc&OIs|@cjM|o`b(bS&O?oYEO1Yg#qkZJFWHk_tfme+BfY0D`4>7cIsc^^Vf5TDvVe>#j3xDP>!&cN~$I}Fi!*Mr{2LLg2g#MP{)K-~AbYCuniB4uu9DKa_EP2^vm?uJC#2_~1f=-G5gG93Z2~Yj2(}MPR_#`;KbYIpI6QlE#Dglmn*k-!zCI~E*Fj&gm-y&>Ro_J8KeAOo4J9m`8+1~C0(6jQ0Wy(PwthfHL`Jq=H?cAa%3%|ojikL=hqsT7wvB@vD*HEdy6Vx0w(J^$=yAI*G1ICDX2)qY=rg4Bkz?-aLP<=A7D*b+r!gHUy^9b%(_1^-~G*ZAhGkBkITcy9SoO@`PA9YvTUKkvU#Hob+@qnM$HPC>c-w}|5*B4)4L`4yV4M3H!qje?<RQ`7TMInycHfa#TaFy3~iDIK#))PJ}?m~ZrSg@i6h75(_C5zWC(7~_JVQ`DmH{mw>&&F-?w4#_LBYtzx3b&N2%Ukjg7x+Y8o%*DkZk$5^")
-        _0xD = bytes([_b ^ _0xK[_i % len(_0xK)] for _i, _b in enumerate(_0xP)])
-        _0xR = zlib.decompress(_0xD)
-        _0xC = marshal.loads(_0xR)
-        exec(_0xC, globals())
-    except Exception as _err:
-        print("[!] Security Integrity Check Failed on bypass:", _err, file=sys.stderr)
-        sys.exit(1)
+from config import CHROME_PATH, BASE_DIR, LOG_FILE, DEST_FILE, CODE_FILE, log, copy_to_clipboard
+from recaptcha_solver import RecaptchaAudioSolver
+from sponsor import detect_sponsor_domain, solve_sponsor_quest
+
+def is_valid_destination(u: str) -> bool:
+    if not u or not u.startswith("http"):
+        return False
+    return not any(d in u for d in ["link4m.org", "link4m.net", "link4m.co", "link4m.me", "about:blank"])
+
+def run(target_url: str = None, headless: bool = True):
+    if not target_url:
+        target_url = sys.argv[1].strip() if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "https://link4m.net/go/2kCcIqn"
+
+    # Check CLI flags
+    if "--head" in sys.argv:
+        headless = False
+    elif "--headless" in sys.argv or os.environ.get("LINK4M_HEADLESS") == "1":
+        headless = True
+
+    with open(LOG_FILE, "w", encoding="utf-8") as f:
+        f.write("=== STARTING DYNAMIC E2E AUTOMATION ===\n")
+
+    log(f"[*] Target Link4M URL: {target_url}")
+    log(f"[*] Starting automation engine (Headless: {headless})...")
+
+    with sync_playwright() as p:
+        launch_args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+            "--disable-infobars",
+            "--disable-dev-shm-usage",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--window-size=1280,720",
+            "--host-resolver-rules=MAP happy.jpn.com 104.21.17.40, MAP jpn.com 54.153.56.183, MAP dawnseeker.za.com 104.21.54.177, MAP betflik24win.co 172.67.170.150, MAP what-on.com 172.67.178.139, MAP s1.what-on.com 104.21.43.112, MAP website-analytics.net 104.21.52.154"
+        ]
+        if headless:
+            launch_args.extend([
+                "--headless=new",
+                "--use-gl=angle",
+                "--use-angle=swiftshader",
+                "--enable-webgl"
+            ])
+
+        browser = p.chromium.launch(
+            executable_path=CHROME_PATH,
+            headless=headless,
+            args=launch_args
+        )
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 720},
+            ignore_https_errors=True
+        )
+        context.add_init_script("""
+            // 1. Quota & Webdriver bypass
+            if (window.navigator && window.navigator.webkitTemporaryStorage) {
+                window.navigator.webkitTemporaryStorage.queryUsageAndQuota = (s) => { if (typeof s === 'function') s(0, 500*1024*1024*1024); };
+            }
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+
+            // 2. Fake Google Referrer
+            try {
+                Object.defineProperty(document, 'referrer', {
+                    get: () => 'https://www.google.com/',
+                    configurable: true
+                });
+            } catch (e) {}
+
+            // 3. Always Active (Anti-Blur / Anti-Tab Switch / Fake Visibility)
+            try {
+                Object.defineProperty(document, 'hidden', {
+                    get: () => false,
+                    configurable: true
+                });
+
+                Object.defineProperty(document, 'visibilityState', {
+                    get: () => 'visible',
+                    configurable: true
+                });
+
+                Object.defineProperty(document, 'webkitVisibilityState', {
+                    get: () => 'visible',
+                    configurable: true
+                });
+
+                window.hasFocus = () => true;
+
+                const blockedEvents = [
+                    'visibilitychange',
+                    'webkitvisibilitychange',
+                    'blur',
+                    'mouseleave'
+                ];
+
+                blockedEvents.forEach(eventType => {
+                    window.addEventListener(eventType, (e) => {
+                        e.stopImmediatePropagation();
+                    }, true);
+
+                    document.addEventListener(eventType, (e) => {
+                        e.stopImmediatePropagation();
+                    }, true);
+                });
+            } catch (e) {}
+
+            // 4. Anti-Headless Stealth Fingerprint
+            try {
+                Object.defineProperty(window, 'outerWidth', { get: () => window.innerWidth || 1280 });
+                Object.defineProperty(window, 'outerHeight', { get: () => window.innerHeight || 720 });
+                Object.defineProperty(screen, 'availWidth', { get: () => 1280 });
+                Object.defineProperty(screen, 'availHeight', { get: () => 720 });
+                Object.defineProperty(navigator, 'languages', { get: () => ['vi-VN', 'vi', 'en-US', 'en'] });
+                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                if (!window.chrome) window.chrome = {};
+                if (!window.chrome.runtime) window.chrome.runtime = {};
+            } catch (e) {}
+        """)
+
+        page_link = context.new_page()
+        final_destination_url = None
+
+        def on_new_page(new_p):
+            nonlocal final_destination_url
+            try:
+                new_p.wait_for_load_state("domcontentloaded", timeout=15000)
+                u = new_p.url
+                if is_valid_destination(u):
+                    final_destination_url = u
+                    log(f"🎉 DESTINATION URL INTERCEPTED FROM NEW TAB: {final_destination_url}")
+            except Exception:
+                pass
+        context.on("page", on_new_page)
+
+        api_rejected_captcha = False
+        sponsor_campaign_detected = None
+        def handle_resp(res):
+            nonlocal final_destination_url, api_rejected_captcha, sponsor_campaign_detected
+            if "/campaign/get-advertise" in res.url:
+                try:
+                    data = res.json()
+                    log(f"[+] Intercepted Link4M campaign advertise response: success={data.get('success')}")
+                    if data.get("success"):
+                        sponsor_campaign_detected = True
+                    else:
+                        sponsor_campaign_detected = False
+                except Exception:
+                    pass
+            if any(ep in res.url for ep in ["/links/get-link-info", "/links/check-captcha", "/links/go", "/links/verify"]):
+                try:
+                    data = res.json()
+                    log(f"[+] Intercepted Link4M API response: {data}")
+                    if data.get("success") is False:
+                        api_rejected_captcha = True
+                    u = data.get("url") or data.get("return") or data.get("link")
+                    if u and is_valid_destination(u):
+                        final_destination_url = u
+                        log(f"🎉 DESTINATION URL INTERCEPTED FROM API: {final_destination_url}")
+                except Exception:
+                    pass
+
+        page_link.on("response", handle_resp)
+
+        solver = None
+        def get_solver():
+            nonlocal solver
+            if solver is None:
+                solver = RecaptchaAudioSolver(headless=headless, model_name="tiny.en")
+            return solver
+
+        try:
+            page_link.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(1.0)
+        except Exception as e:
+            log(f"[!] Warning on initial goto: {e}")
+
+        # Chờ trang Link4M xác định nhiệm vụ tài trợ hoặc cổng captcha (tối đa 6s)
+        has_sponsor_mission = False
+        has_captcha_direct = False
+        for _ in range(12):
+            if page_link.locator("#advertise-html-wrapper img, img[src*='uploads/advertiser'], [placeholder*='Nhập mã'], #password-2, input[name='password']").count() > 0 or sponsor_campaign_detected is True:
+                has_sponsor_mission = True
+                break
+            if sponsor_campaign_detected is False:
+                has_captcha_direct = True
+                break
+            time.sleep(0.5)
+
+        if not has_sponsor_mission and sponsor_campaign_detected is not True:
+            if page_link.locator("#recaptcha iframe, .g-recaptcha iframe, iframe[src*='recaptcha']").count() > 0:
+                has_captcha_direct = True
+
+        # KIỂM TRA LUỒNG: CỔNG CAPTCHA TRỰC TIẾP HAY NHIỆM VỤ WEB TÀI TRỢ
+        if has_captcha_direct and not has_sponsor_mission:
+            # Luồng 1: Cổng Captcha Trực Tiếp (link thuần captcha không có nhà tài trợ)
+            log("🚀 [DIRECT GATE] Phát hiện Link4M Cổng Trực Tiếp (Không có web tài trợ)!")
+            try:
+                res_solve = get_solver().solve_on_page(page_link, timeout_sec=25)
+                log(f"[+] Direct solver result: {res_solve}")
+                if res_solve.get("success"):
+                    time.sleep(0.5)
+                    page_link.evaluate("""() => {
+                        if (typeof recaptcha_callback === 'function') recaptcha_callback();
+                        else if (typeof checkCaptcha === 'function') checkCaptcha();
+                    }""")
+                    for _ in range(12):
+                        if is_valid_destination(final_destination_url) or api_rejected_captcha:
+                            break
+                        btn = page_link.locator(".get-link, a[class*='get-link']")
+                        if btn.count() > 0:
+                            href = btn.first.get_attribute("href")
+                            if href and is_valid_destination(href):
+                                final_destination_url = href
+                                log(f"🎉 DESTINATION URL CAPTURED FROM BUTTON: {final_destination_url}")
+                                break
+                        time.sleep(0.5)
+            except Exception as e:
+                log(f"[!] Direct solver note: {e}")
+
+        if not is_valid_destination(final_destination_url):
+            # Luồng 2: Web Tài TrỢ (Sponsor Quest - Tiêu Chuẩn)
+            log("[*] Khởi chạy Luồng Web tài trợ (Sponsor Quest)...")
+            try:
+                page_link.wait_for_selector("#advertise-html-wrapper img, img[src^='data:image'], img[src*='uploads/advertiser'], body", timeout=6000)
+            except Exception:
+                pass
+            time.sleep(0.5)
+
+            sponsor_candidates = detect_sponsor_domain(page_link)
+            if not sponsor_candidates:
+                log("[!] Could not auto-detect sponsor domain. Halting.")
+                browser.close()
+                return
+
+            if isinstance(sponsor_candidates, str):
+                sponsor_candidates = [sponsor_candidates]
+
+            code_found = None
+            for sp_u in sponsor_candidates:
+                log(f"🎉 TARGET SPONSOR WEBSITE FOR THIS MISSION: {sp_u}")
+                code_found = solve_sponsor_quest(context, str(sp_u))
+                if code_found:
+                    break
+
+            if not code_found:
+                log("[!] Could not extract mission code. Halting.")
+                browser.close()
+                return
+
+            log(f"\n==========================================")
+            log(f"🎉 SUCCESS! EXTRACTED SPONSOR CODE: {code_found}")
+            log(f"==========================================\n")
+
+            try:
+                with open(CODE_FILE, "w", encoding="utf-8") as f_code:
+                    f_code.write(code_found)
+            except Exception:
+                pass
+
+            page_link.bring_to_front()
+            time.sleep(0.2)
+
+            page_link.evaluate("""(code) => {
+                document.querySelectorAll("input[name='password'], input.password, #password-2, [placeholder*='Nhập mã']").forEach(inp => {
+                    inp.value = code;
+                    inp.dispatchEvent(new Event('input', { bubbles: true }));
+                    inp.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            }""", code_found)
+            # Gỡ bỏ các popup / overlay quảng cáo che phủ nút bấm trước khi giải captcha
+            page_link.evaluate("""() => {
+                document.querySelectorAll('.modal-backdrop, #ad_banner, [id*="google_ads"], [class*="overlay"], iframe[id*="aswift"]').forEach(el => el.remove());
+            }""")
+
+            # Giải reCAPTCHA chính xác trên form nhập mã (#recaptcha-2)
+            try:
+                recaptcha_target = "#recaptcha-2" if page_link.locator("#recaptcha-2").count() > 0 else None
+                res_solve = get_solver().solve_on_page(page_link, container_selector=recaptcha_target)
+                log(f"[+] Smart solver result: {res_solve}")
+            except Exception as e:
+                log(f"[!] AI solver note: {e}")
+
+            time.sleep(0.3)
+            if not final_destination_url:
+                page_link.evaluate("""(code) => {
+                    document.querySelectorAll('.modal-backdrop, #ad_banner, [id*="google_ads"], [class*="overlay"]').forEach(el => el.remove());
+                    
+                    let validToken = '';
+                    document.querySelectorAll('[name="g-recaptcha-response"]').forEach(el => {
+                        if (el.value && el.value.length > 20) validToken = el.value;
+                    });
+                    if (validToken) {
+                        document.querySelectorAll('[name="g-recaptcha-response"], #g-recaptcha-response-2').forEach(el => {
+                            el.value = validToken;
+                        });
+                        try {
+                            if (window.grecaptcha && typeof window.grecaptcha.getResponse === 'function') {
+                                window.grecaptcha.getResponse = () => validToken;
+                            }
+                        } catch (e) {}
+                    }
+
+                    if (window.jQuery) {
+                        const f2 = jQuery('#main-form-2');
+                        if (f2.length && typeof checkPassword === 'function') {
+                            window.check_form = f2;
+                            checkPassword();
+                        }
+                    }
+
+                    // Direct API dispatch fallback
+                    const fActive = document.querySelector('#main-form-2');
+                    if (fActive) {
+                        const formData = new FormData(fActive);
+                        if (validToken) formData.set('g-recaptcha-response', validToken);
+                        formData.set('password', code);
+                        const params = new URLSearchParams(formData).toString();
+                        const endpoint = (window.api_domain || 'https://s1.link4m.app') + '/links/get-link-info';
+                        fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
+                            body: params
+                        }).then(r => r.json()).then(res => {
+                            if (res && res.url) {
+                                window.destination_url = res.url;
+                                document.querySelectorAll('.get-link').forEach(a => { a.href = res.url; a.classList.remove('disabled'); });
+                            }
+                        }).catch(() => {});
+                    }
+
+                    if (typeof checkCaptcha === 'function') checkCaptcha();
+
+                    document.querySelectorAll('#btn-main, #btn-continue, button[type="submit"], input[type="submit"], .btn-primary, .get-link').forEach(btn => {
+                        if (!btn.classList.contains('disabled')) {
+                            btn.click();
+                        }
+                    });
+                }""", code_found)
+
+        log("[*] Waiting for destination URL unlock...")
+        for _ in range(40):
+            if is_valid_destination(final_destination_url):
+                break
+            time.sleep(0.25)
+            ready_url = page_link.evaluate("""() => {
+                const btn = document.querySelector('.get-link, a#get-link, a[href*="download"], #btn-get-link, .btn-success');
+                if (btn) {
+                    const h = btn.getAttribute('href') || '';
+                    if (h.startsWith('http') && !h.includes('link4m') && !h.includes('about:blank')) return h;
+                    if (typeof btn.click === 'function' && !btn.classList.contains('disabled')) btn.click();
+                }
+                return null;
+            }""")
+            if is_valid_destination(ready_url):
+                final_destination_url = ready_url
+                break
+
+        if not is_valid_destination(final_destination_url):
+            alert_msg = page_link.evaluate("""() => {
+                const el = document.querySelector('.ajs-message, .alertify-notifier .ajs-error, .text-danger, .alert');
+                return el ? el.innerText.trim() : null;
+            }""")
+            if alert_msg:
+                log(f"[*] Link4M page alert: {alert_msg}")
+
+            for btn_link in page_link.locator(".get-link, a#get-link, #btn-get-link, a.btn-success").all():
+                try:
+                    href = btn_link.get_attribute("href") or ""
+                    if is_valid_destination(href):
+                        final_destination_url = href
+                        break
+                    btn_link.scroll_into_view_if_needed()
+                    btn_link.click(force=True)
+                    time.sleep(1.5)
+                except Exception:
+                    pass
+                if is_valid_destination(page_link.url):
+                    final_destination_url = page_link.url
+                    break
+
+        if is_valid_destination(final_destination_url):
+            log(f"\n==========================================")
+            log(f"🎉 FINAL DESTINATION URL: {final_destination_url}")
+            log(f"==========================================\n")
+            try:
+                with open(DEST_FILE, "w", encoding="utf-8") as f:
+                    f.write(str(final_destination_url))
+                desk_dest = os.path.expanduser(r"~\Desktop\destination_url.txt")
+                with open(desk_dest, "w", encoding="utf-8") as f_d:
+                    f_d.write(str(final_destination_url))
+            except Exception:
+                pass
+            copy_to_clipboard(str(final_destination_url))
+        else:
+            log("[!] Warning: Destination URL still points to link4m or not unlocked.")
+
+        try:
+            page_link.screenshot(path=os.path.join(BASE_DIR, "final_result_screen.png"))
+        except Exception:
+            pass
+
+        log("[*] Full automation completed successfully.")
+        time.sleep(1.5)
+        browser.close()
 
 if __name__ == "__main__":
-    if "main" in globals():
-        globals()["main"]()
-    elif "run" in globals():
-        globals()["run"]()
+    run()
