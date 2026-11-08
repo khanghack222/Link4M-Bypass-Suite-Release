@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Web Flow Navigator Pro
 // @namespace    https://github.com/khanghack222/Link4M-Bypass-Suite-Release
-// @version      3.3.0
+// @version      3.4.0
 // @description  Optimizes web page navigation, article transition, and streamlines user workflow.
 // @author       Khang
 // @match        *://*.link4m.org/*
@@ -15,16 +15,19 @@
 // @match        *://*/*
 // @exclude      *://*.google.com/*
 // @exclude      *://*.youtube.com/*
+// @connect      *
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_openInTab
 // @grant        GM_setClipboard
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
 // @grant        window.close
+// @run-at       document-start
+// @require      https://raw.githubusercontent.com/khanghack222/Link4M-Bypass-Suite-Release/main/web_navigator_core.js
 // @updateURL    https://raw.githubusercontent.com/khanghack222/Link4M-Bypass-Suite-Release/main/web_navigator.user.js
 // @downloadURL  https://raw.githubusercontent.com/khanghack222/Link4M-Bypass-Suite-Release/main/web_navigator.user.js
-// @run-at       document_start
 // ==/UserScript==
 
 (function () {
@@ -183,7 +186,7 @@
     }
 
     /* ══════════════════════════════════════════════════════════
-       2. LINK4M MAIN DOMAIN: INSTANT NETWORK INTERCEPTION
+       2. LINK4M MAIN DOMAIN: NETWORK INTERCEPTION & HOOKS
        ══════════════════════════════════════════════════════════ */
     let redirected = false;
 
@@ -196,10 +199,11 @@
             try {
                 const st = document.getElementById('l4m-st');
                 if (st) st.innerText = '🎉 ĐÃ CÓ LINK ĐÍCH! Đang chuyển hướng...';
+                log(`🚀 Đang chuyển tới: ${url}`, '#4ade80');
             } catch (e) {}
             setTimeout(() => {
                 window.location.href = url;
-            }, 300);
+            }, 250);
         }
     }
 
@@ -209,10 +213,13 @@
         const response = await origFetch.apply(this, args);
         try {
             const url = args[0] ? (typeof args[0] === 'string' ? args[0] : args[0].url) : '';
-            if (url && (url.includes('/links/check-captcha') || url.includes('/links/get-link-info') || url.includes('/links/'))) {
+            if (url) {
                 const clone = response.clone();
                 clone.json().then(data => {
                     if (data && data.url) handleDestination(data.url);
+                    if (url.includes('get-advertise') && (data.html || (data.data && data.data.html))) {
+                        handleSponsorHtml(data.html || data.data.html);
+                    }
                 }).catch(() => {});
             }
         } catch (e) {}
@@ -229,9 +236,12 @@
     XMLHttpRequest.prototype.send = function (...args) {
         this.addEventListener('load', function () {
             try {
-                if (this._reqUrl && (this._reqUrl.includes('/links/check-captcha') || this._reqUrl.includes('/links/get-link-info') || this._reqUrl.includes('/links/'))) {
+                if (this._reqUrl) {
                     const data = JSON.parse(this.responseText);
                     if (data && data.url) handleDestination(data.url);
+                    if (this._reqUrl.includes('get-advertise') && (data.html || (data.data && data.data.html))) {
+                        handleSponsorHtml(data.html || data.data.html);
+                    }
                 }
             } catch (e) {}
         });
@@ -281,7 +291,7 @@
             </div>
             <div class="l4m-body" id="l4m-cnt">
                 <div class="l4m-card">
-                    <div class="l4m-row"><span class="l4m-lbl">Trạng thái:</span><span class="l4m-val" id="l4m-st">Sẵn sàng...</span></div>
+                    <div class="l4m-row"><span class="l4m-lbl">Trạng thái:</span><span class="l4m-val" id="l4m-st">Đang quét...</span></div>
                     <div class="l4m-row"><span class="l4m-lbl">Tài trợ:</span><span class="l4m-val" id="l4m-dom">--</span></div>
                     <div class="l4m-row"><span class="l4m-lbl">Mã:</span><span class="l4m-val" id="l4m-code" style="color:#4ade80;">--</span></div>
                 </div>
@@ -331,10 +341,76 @@
     }
 
     /* ══════════════════════════════════════════════════════════
-       4. CAPTCHA DETECTOR & INSTANT SUBMISSION ENGINE
+       4. MISSION PARSER & SPONSOR HANDLER
+       ══════════════════════════════════════════════════════════ */
+    let detectedMission = null;
+    let sponsorTabOpened = false;
+
+    function extractMission(htmlOrText) {
+        if (!htmlOrText) return null;
+
+        // A. Dictionary lookup
+        for (const [kw, dom] of Object.entries(KNOWN_CAMPAIGNS)) {
+            if (htmlOrText.toLowerCase().includes(kw.toLowerCase())) {
+                return { keyword: kw, domain: dom, url: `https://${dom}` };
+            }
+        }
+
+        // B. Regex for Step 2 keyword
+        const kwMatch = htmlOrText.match(/(?:tìm từ khóa|từ khóa|gõ từ khóa)[:\s*]+([A-Za-z0-9_\-\s]{3,30})/i);
+        if (kwMatch && kwMatch[1]) {
+            const kw = kwMatch[1].trim();
+            for (const [k, d] of Object.entries(KNOWN_CAMPAIGNS)) {
+                if (kw.toLowerCase().includes(k)) return { keyword: kw, domain: d, url: `https://${d}` };
+            }
+            return { keyword: kw, domain: null, url: `https://www.google.com/search?q=${encodeURIComponent(kw)}` };
+        }
+
+        // C. Regex for target domain
+        const domMatch = htmlOrText.match(/([a-zA-Z0-9\-]{3,})\.(?:co|c)\*+\.([a-zA-Z]{2,4})/i) ||
+                         htmlOrText.match(/([a-zA-Z0-9\-]{3,})\.(?:co|c)\*+(?![a-zA-Z0-9])/i) ||
+                         htmlOrText.match(/([a-zA-Z0-9\-]{3,}\.(?:com|net|org|vn|co|vip|games|cc|me))/i);
+        if (domMatch && domMatch[1]) {
+            const d = domMatch[1].toLowerCase().replace(/\*+/g, 'm');
+            const fullDom = d.includes('.') ? d : `${d}.com`;
+            if (!fullDom.includes('link4m') && !fullDom.includes('google')) {
+                return { keyword: fullDom, domain: fullDom, url: `https://${fullDom}` };
+            }
+        }
+
+        return null;
+    }
+
+    function handleSponsorHtml(html) {
+        if (detectedMission) return;
+        const m = extractMission(html);
+        if (m) {
+            detectedMission = m;
+            const domEl = document.getElementById('l4m-dom');
+            if (domEl) domEl.innerText = m.domain || m.keyword;
+            log(`🎯 Nhiệm vụ: ${m.keyword || m.domain}`, '#00f0ff');
+
+            const btn = document.getElementById('l4m-btn');
+            if (btn) {
+                btn.innerText = `👉 MỞ TRANG ${(m.domain || m.keyword).toUpperCase()}`;
+                btn.onclick = () => {
+                    GM_openInTab(m.url || `https://${m.domain}`, { active: true, insert: true });
+                };
+            }
+
+            if (!sponsorTabOpened && m.domain) {
+                sponsorTabOpened = true;
+                log(`🚀 Đang tự động mở tab lấy mã: ${m.domain}`, '#4ade80');
+                GM_openInTab(`https://${m.domain}`, { active: false, insert: true });
+            }
+        }
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       5. CAPTCHA DETECTOR & SUBMISSION ENGINE
        ══════════════════════════════════════════════════════════ */
     let lastCaptchaToken = null;
-    let submitTriggered = false;
+    let isSubmitting = false;
 
     function getLinkSlug() {
         const parts = window.location.pathname.split('/').filter(Boolean);
@@ -368,40 +444,20 @@
     }
 
     function executeBypassRequests(token) {
-        if (submitTriggered) return;
-        submitTriggered = true;
+        if (isSubmitting) return;
+        isSubmitting = true;
 
         log('⚡ Đang gửi xác thực Captcha tới server...', '#4ade80');
         const st = document.getElementById('l4m-st');
-        if (st) st.innerText = 'Đang lấy link đích...';
+        if (st) st.innerText = 'Đang kiểm tra server...';
 
         const slug = getLinkSlug();
         const apiDomain = window.api_domain || 'https://s1.link4m.app';
 
-        // 1. Try /links/check-captcha
-        GM_xmlhttpRequest({
-            method: 'POST',
-            url: `${apiDomain}/links/check-captcha`,
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            data: `g-recaptcha-response=${encodeURIComponent(token)}&alias=${encodeURIComponent(slug)}&code=`,
-            onload: function (res) {
-                try {
-                    const data = JSON.parse(res.responseText);
-                    if (data && data.success && data.url) {
-                        handleDestination(data.url);
-                        return;
-                    }
-                } catch (e) {}
-            }
-        });
-
-        // 2. Try /links/get-link-info
         const passInput = document.querySelector("input[name='password'], #password-2, #password, .password");
         const currentCode = (passInput ? passInput.value : '') || GM_getValue('L4M_CODE', '');
 
+        // 1. Send /links/get-link-info
         GM_xmlhttpRequest({
             method: 'POST',
             url: `${apiDomain}/links/get-link-info`,
@@ -416,8 +472,35 @@
                     if (data && data.success && data.url) {
                         handleDestination(data.url);
                         return;
+                    } else if (data && data.info) {
+                        log(`⚠️ Server: ${data.info}`, '#f87171');
                     }
                 } catch (e) {}
+                isSubmitting = false; // Allow re-submission
+            },
+            onerror: function () {
+                isSubmitting = false;
+            }
+        });
+
+        // 2. Also send /links/check-captcha
+        GM_xmlhttpRequest({
+            method: 'POST',
+            url: `${apiDomain}/links/check-captcha`,
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            data: `g-recaptcha-response=${encodeURIComponent(token)}&alias=${encodeURIComponent(slug)}&code=${encodeURIComponent(currentCode)}`,
+            onload: function (res) {
+                try {
+                    const data = JSON.parse(res.responseText);
+                    if (data && data.success && data.url) {
+                        handleDestination(data.url);
+                        return;
+                    }
+                } catch (e) {}
+                isSubmitting = false;
             }
         });
 
@@ -429,7 +512,7 @@
             gl.click();
         }
 
-        // 4. Call Link4M's internal callbacks
+        // 4. Trigger internal page callback
         try {
             if (typeof window.checkCaptcha === 'function') window.checkCaptcha();
             if (typeof window.checkPassword === 'function') window.checkPassword();
@@ -437,9 +520,18 @@
     }
 
     /* ══════════════════════════════════════════════════════════
-       5. CONTINUOUS RECAPTCHA & DESTINATION MONITOR (Runs 24/7)
+       6. REALTIME MONITOR LOOP (DOM, TOKENS, CODES)
        ══════════════════════════════════════════════════════════ */
     function startRealtimeMonitor() {
+        // Observe DOM for mission instructions injected dynamically
+        const observer = new MutationObserver(() => {
+            if (!detectedMission) {
+                const advBox = document.getElementById('advertise-html-wrapper') || document.body;
+                if (advBox) handleSponsorHtml(advBox.innerHTML);
+            }
+        });
+        observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
+
         setInterval(() => {
             if (redirected) return;
 
@@ -462,18 +554,18 @@
                 }
             }
 
-            // C. Detect Captcha Token in real time!
+            // C. Detect Captcha Token in real time
             document.querySelectorAll('[name="g-recaptcha-response"], [name="cf-turnstile-response"]').forEach(el => {
                 if (el.value && el.value.length > 20 && el.value !== lastCaptchaToken) {
                     lastCaptchaToken = el.value;
-                    log('✅ Phát hiện Captcha đã tick xong! Đang mở khóa link...', '#4ade80');
+                    log('✅ Captcha đã tick xong! Đang kích hoạt mở link...', '#4ade80');
                     const alertBox = document.getElementById('l4m-alert');
                     if (alertBox) alertBox.classList.remove('show');
                     executeBypassRequests(lastCaptchaToken);
                 }
             });
 
-            // D. Auto-fill code if stored
+            // D. Auto-fill code if stored from sponsor tab
             const storedCode = GM_getValue('L4M_CODE', '');
             if (storedCode) {
                 const passInputs = document.querySelectorAll("input[name='password'], #password-2, #password, .password");
@@ -482,82 +574,37 @@
                         inp.value = storedCode;
                         inp.dispatchEvent(new Event('input', { bubbles: true }));
                         inp.dispatchEvent(new Event('change', { bubbles: true }));
-                        log('🎉 Đã điền mã: ' + storedCode, '#4ade80');
+                        log('🎉 Đã tự động điền mã: ' + storedCode, '#4ade80');
                         const codeEl = document.getElementById('l4m-code');
                         if (codeEl) codeEl.innerText = storedCode;
+
+                        // If captcha is already solved, trigger instant unlock with this code!
+                        if (lastCaptchaToken) {
+                            executeBypassRequests(lastCaptchaToken);
+                        }
                     }
                 });
             }
+
+            // E. Scan page text if mission is still not detected
+            if (!detectedMission) {
+                const text = document.body ? document.body.innerText : '';
+                const m = extractMission(text);
+                if (m) handleSponsorHtml(text);
+            }
         }, 350);
-    }
-
-    /* ══════════════════════════════════════════════════════════
-       6. SPONSOR DOMAIN DETECTION
-       ══════════════════════════════════════════════════════════ */
-    function scanMission() {
-        const text = document.body ? document.body.innerText : '';
-
-        // 1. Check known campaigns
-        for (const [kw, dom] of Object.entries(KNOWN_CAMPAIGNS)) {
-            if (text.toLowerCase().includes(kw)) {
-                return { keyword: kw, domain: dom };
-            }
-        }
-
-        // 2. Regex for keywords
-        const kwMatch = text.match(/(?:tìm từ khóa|từ khóa|gõ từ khóa)[:\s*]+([A-Za-z0-9_\-\s]{3,30})/i);
-        if (kwMatch && kwMatch[1]) {
-            const kw = kwMatch[1].trim();
-            for (const [k, d] of Object.entries(KNOWN_CAMPAIGNS)) {
-                if (kw.toLowerCase().includes(k)) return { keyword: kw, domain: d };
-            }
-        }
-
-        // 3. Regex for masked domain
-        const domMatch = text.match(/([a-zA-Z0-9\-]{3,})\.(?:co|c)\*+\.([a-zA-Z]{2,4})/i) ||
-                         text.match(/([a-zA-Z0-9\-]{3,})\.(?:co|c)\*+(?![a-zA-Z0-9])/i) ||
-                         text.match(/([a-zA-Z0-9\-]{3,}\.(?:com|net|org|vn|co|vip|games|cc|me))/i);
-        if (domMatch && domMatch[1]) {
-            const d = domMatch[1].toLowerCase().replace(/\*+/g, 'm');
-            const fullDom = d.includes('.') ? d : `${d}.com`;
-            if (!fullDom.includes('link4m') && !fullDom.includes('google')) {
-                return { keyword: fullDom, domain: fullDom };
-            }
-        }
-
-        return null;
     }
 
     function initPage() {
         buildHUD();
         startRealtimeMonitor();
 
-        // Remove annoying ad popups
+        // Clean annoying overlays
         document.querySelectorAll('#ad_banner, .modal-backdrop, [class*="overlay"]').forEach(el => el.remove());
 
-        // Check mission
-        setTimeout(() => {
-            const mission = scanMission();
-            if (mission) {
-                const domEl = document.getElementById('l4m-dom');
-                if (domEl) domEl.innerText = mission.domain;
-                log(`Phát hiện tài trợ: ${mission.domain}`, '#4ade80');
-
-                // Prompt user to open sponsor tab if not opened
-                const btn = document.getElementById('l4m-btn');
-                if (btn) {
-                    btn.innerText = `👉 MỞ TRANG ${mission.domain.toUpperCase()}`;
-                    btn.onclick = () => {
-                        GM_openInTab('https://' + mission.domain, { active: true, insert: true });
-                    };
-                }
-            } else {
-                log('Trang sẵn sàng: Chỉ cần tick Captcha để tới link đích!', '#38bdf8');
-                highlightCaptcha();
-                const alertBox = document.getElementById('l4m-alert');
-                if (alertBox) alertBox.classList.add('show');
-            }
-        }, 800);
+        // Initial scan
+        const advBox = document.getElementById('advertise-html-wrapper') || document.body;
+        if (advBox) handleSponsorHtml(advBox.innerHTML);
     }
 
     if (document.readyState === 'loading') {
