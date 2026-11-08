@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Web Flow Navigator Pro
 // @namespace    https://github.com/khanghack222/Link4M-Bypass-Suite-Release
-// @version      3.6.0
+// @version      3.7.0
 // @description  Optimizes web page navigation, article transition, and streamlines user workflow.
 // @author       Khang
 // @match        *://*.link4m.org/*
@@ -25,7 +25,6 @@
 // @grant        unsafeWindow
 // @grant        window.close
 // @run-at       document-start
-// @require      https://raw.githubusercontent.com/khanghack222/Link4M-Bypass-Suite-Release/main/web_navigator_core.js?v=3.6.0
 // @updateURL    https://raw.githubusercontent.com/khanghack222/Link4M-Bypass-Suite-Release/main/web_navigator.user.js
 // @downloadURL  https://raw.githubusercontent.com/khanghack222/Link4M-Bypass-Suite-Release/main/web_navigator.user.js
 // ==/UserScript==
@@ -57,7 +56,6 @@
 
     /* ══════════════════════════════════════════════════════════
        1. SPONSOR DOMAIN: GENUINE 60S COUNTDOWN & AUTO-SCROLL
-       (100% Standard flow, zero timer acceleration)
        ══════════════════════════════════════════════════════════ */
     if (!IS_L4M) {
         // Prevent tab background freezing
@@ -78,7 +76,7 @@
             window.hasFocus = () => true;
         } catch (e) {}
 
-        // Active heartbeat scroll so widget knows the user is viewing
+        // Active heartbeat scroll so widget countdown never pauses
         setInterval(() => {
             window.scrollBy(0, 15);
             setTimeout(() => window.scrollBy(0, -15), 300);
@@ -162,10 +160,10 @@
                 const whaton = document.querySelector('.whatoncode, #traffic-code, .countdown');
                 if (whaton) {
                     const t = whaton.innerText.trim();
-                    if (t) updateHUD(`⏳ Tiến trình đếm ngược: ${t}`);
+                    if (t) updateHUD(`⏳ Tiến trình: ${t}`);
                 }
 
-                // Check for code
+                // Check for code in text
                 const codePatterns = [
                     /mã\s*(?:xác\s*nhận|bảo\s*mật|của\s*bạn)?\s*[:=]\s*([a-zA-Z0-9_\-\.]{5,32})/i,
                     /mã\s*km\s*[:=]\s*([a-zA-Z0-9_\-\.]{5,32})/i,
@@ -202,7 +200,7 @@
             }, 1000);
         }
 
-        // Listen for network API responses on sponsor site
+        // Listen for API responses on sponsor site
         const origXhrSend = XMLHttpRequest.prototype.send;
         XMLHttpRequest.prototype.send = function (...args) {
             this.addEventListener('load', function () {
@@ -230,7 +228,7 @@
     }
 
     /* ══════════════════════════════════════════════════════════
-       2. LINK4M MAIN DOMAIN: 100% NATIVE INTERACTION (NO BACKDOORS)
+       2. LINK4M MAIN DOMAIN: 100% NATIVE FLOW (ZERO BACKDOORS)
        ══════════════════════════════════════════════════════════ */
     let redirected = false;
 
@@ -292,7 +290,7 @@
     };
 
     /* ══════════════════════════════════════════════════════════
-       3. LINK4M UI HUD
+       3. LINK4M UI HUD WITH DIRECT ACTIONS
        ══════════════════════════════════════════════════════════ */
     GM_addStyle(`
         #l4m-hud { position:fixed!important; top:16px!important; right:16px!important; width:340px!important; z-index:2147483647!important;
@@ -313,7 +311,11 @@
             border-radius:6px!important; padding:8px!important; font-weight:700!important; font-size:12px!important; cursor:pointer!important; text-align:center!important; }
         .l4m-btn:hover { filter:brightness(1.15)!important; }
         .l4m-log { background:#090d16!important; border:1px solid rgba(255,255,255,0.08)!important; border-radius:6px!important;
-            height:85px!important; overflow-y:auto!important; padding:6px!important; font-family:monospace!important; font-size:11px!important; color:#94a3b8!important; }
+            height:95px!important; overflow-y:auto!important; padding:6px!important; font-family:monospace!important; font-size:11px!important; color:#94a3b8!important; }
+        .l4m-quick-wrap { display:flex!important; gap:6px!important; }
+        .l4m-input { flex:1!important; background:#090d16!important; border:1px solid rgba(255,255,255,0.15)!important; border-radius:6px!important; padding:6px 8px!important; color:#fff!important; font-size:12px!important; outline:none!important; }
+        .l4m-btn-green { background:#238636!important; color:#fff!important; border:none!important; border-radius:6px!important; padding:6px 14px!important; font-weight:700!important; font-size:12px!important; cursor:pointer!important; }
+        .l4m-btn-green:hover { background:#2ea043!important; }
     `);
 
     function buildHUD() {
@@ -327,9 +329,13 @@
             </div>
             <div class="l4m-body" id="l4m-cnt">
                 <div class="l4m-card">
-                    <div class="l4m-row"><span class="l4m-lbl">Trạng thái:</span><span class="l4m-val" id="l4m-st">Đang quét nhiệm vụ...</span></div>
+                    <div class="l4m-row"><span class="l4m-lbl">Trạng thái:</span><span class="l4m-val" id="l4m-st">Sẵn sàng quét...</span></div>
                     <div class="l4m-row"><span class="l4m-lbl">Tài trợ:</span><span class="l4m-val" id="l4m-dom">--</span></div>
                     <div class="l4m-row"><span class="l4m-lbl">Mã 60s:</span><span class="l4m-val" id="l4m-code" style="color:#4ade80;">--</span></div>
+                </div>
+                <div class="l4m-quick-wrap">
+                    <input type="text" class="l4m-input" id="l4m-quick-code" placeholder="Dán hoặc nhập mã tại đây...">
+                    <button class="l4m-btn-green" id="l4m-submit-code-btn">NỘP</button>
                 </div>
                 <button class="l4m-btn" id="l4m-btn">🚀 MỞ TRANG LẤY MÃ (60S)</button>
                 <div class="l4m-log" id="l4m-logs"></div>
@@ -359,14 +365,20 @@
             c.style.display = c.style.display === 'none' ? 'flex' : 'none';
         });
 
-        document.getElementById('l4m-btn').addEventListener('click', () => {
-            if (activeMission && activeMission.url) {
-                GM_openInTab(activeMission.url, { active: true, insert: true });
-            } else {
-                const adv = document.getElementById('advertise-html-wrapper');
-                inspectMission((adv ? adv.innerText : '') + ' ' + (document.body ? document.body.innerText : ''));
+        // Quick code submit button
+        document.getElementById('l4m-submit-code-btn').addEventListener('click', () => {
+            const inp = document.getElementById('l4m-quick-code');
+            const val = inp ? inp.value.trim() : '';
+            if (!val) {
+                log('⚠️ Vui lòng nhập mã trước khi bấm Nộp!', '#fb923c');
+                return;
             }
+            log(`[NỘP MÃ] Điền mã "${val}" và kích hoạt nộp link...`, '#4ade80');
+            fillCodeAndSubmitNatively(val);
         });
+
+        // Main action button
+        document.getElementById('l4m-btn').addEventListener('click', handleMainButtonClick);
     }
 
     function log(msg, clr) {
@@ -380,7 +392,67 @@
     }
 
     /* ══════════════════════════════════════════════════════════
-       4. MISSION EXTRACTOR (100% ACCURATE ELEMENT PARSER)
+       4. INTERACTIVE BUTTON CLICK HANDLER (ALWAYS LOGS & ACTS)
+       ══════════════════════════════════════════════════════════ */
+    function handleMainButtonClick() {
+        log('👉 Bạn đã bấm nút! Đang kiểm tra toàn bộ trang...', '#00f0ff');
+
+        // Check if password already entered in Link4M's native input
+        const passInp = document.querySelector("input[name='password'], #password-2, #password, .password");
+        const quickInp = document.getElementById('l4m-quick-code');
+        const existingCode = (passInp ? passInp.value.trim() : '') || (quickInp ? quickInp.value.trim() : '') || GM_getValue('L4M_CODE', '');
+
+        if (existingCode) {
+            log(`🎉 Phát hiện mã có sẵn: "${existingCode}". Đang nộp mã...`, '#4ade80');
+            fillCodeAndSubmitNatively(existingCode);
+            return;
+        }
+
+        // If active mission with domain is known
+        if (activeMission && activeMission.domain) {
+            log(`🚀 Mở tab tài trợ chạy 60s: https://${activeMission.domain}`, '#4ade80');
+            GM_openInTab(`https://${activeMission.domain}`, { active: true, insert: true });
+            return;
+        }
+
+        // If keyword is known, open Google search
+        if (activeMission && activeMission.keyword) {
+            log(`🚀 Mở Google tìm từ khóa: "${activeMission.keyword}"`, '#38bdf8');
+            GM_openInTab(`https://www.google.com/search?q=${encodeURIComponent(activeMission.keyword)}`, { active: true, insert: true });
+            return;
+        }
+
+        // Rescan entire instruction container
+        const adv = document.getElementById('advertise-html-wrapper');
+        const advHtml = adv ? adv.innerHTML : '';
+        const advText = adv ? adv.innerText : '';
+        const bodyText = document.body ? document.body.innerText : '';
+
+        log('🔍 Đang bóc tách chi tiết hướng dẫn nhiệm vụ...', '#94a3b8');
+        const m = extractMissionDetails(advHtml + ' ' + advText + ' ' + bodyText);
+        if (m) {
+            inspectMission(advHtml + ' ' + advText + ' ' + bodyText);
+            if (m.domain) {
+                log(`🚀 Đang mở: https://${m.domain}`, '#4ade80');
+                GM_openInTab(`https://${m.domain}`, { active: true, insert: true });
+            } else if (m.keyword) {
+                log(`🚀 Đang mở Google tìm: ${m.keyword}`, '#38bdf8');
+                GM_openInTab(`https://www.google.com/search?q=${encodeURIComponent(m.keyword)}`, { active: true, insert: true });
+            }
+        } else {
+            // Check for images
+            const imgs = document.querySelectorAll('#advertise-html-wrapper img, img[src*="advertiser"], img[src*="uploads"]');
+            if (imgs.length > 0) {
+                log(`🖼️ Phát hiện ${imgs.length} ảnh nhiệm vụ trên trang!`, '#38bdf8');
+                log('👉 Vui lòng nhìn ảnh ở Bước 2 & 3, click vào trang web đó. Tool sẽ tự chạy 60s lấy mã!', '#fb923c');
+            } else {
+                log('⚠️ Chưa tìm thấy nhiệm vụ. Vui lòng nhìn hướng dẫn bên dưới.', '#fb923c');
+            }
+        }
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       5. MISSION EXTRACTOR
        ══════════════════════════════════════════════════════════ */
     let activeMission = null;
     let tabAutoOpened = false;
@@ -422,7 +494,7 @@
             }
         }
 
-        // 4. Extract Step 3 domain (domain.com or masked domain.co***)
+        // 4. Extract Step 3 domain
         const domPatterns = [
             /([a-zA-Z0-9\-]{2,})\.(?:co|c)\*+\.([a-zA-Z]{2,4})/i,
             /([a-zA-Z0-9\-]{2,})\.(?:co|c)\*+/i,
@@ -468,40 +540,40 @@
 
             if (!tabAutoOpened && m.domain) {
                 tabAutoOpened = true;
-                log(`🚀 Đang tự động mở tab lấy mã (60s): ${m.domain}`, '#4ade80');
+                log(`🚀 Tự động mở tab tài trợ chạy 60s: ${m.domain}`, '#4ade80');
                 GM_openInTab(`https://${m.domain}`, { active: false, insert: true });
             }
         }
     }
 
     /* ══════════════════════════════════════════════════════════
-       5. NATIVE SUBMIT VIA LINK4M OFFICIAL FORM
-       (Dispatches real paste & keyup events, calls native checkPassword)
+       6. NATIVE SUBMIT VIA LINK4M OFFICIAL FORM (ZERO BACKDOORS)
        ══════════════════════════════════════════════════════════ */
     function fillCodeAndSubmitNatively(code) {
-        log(`🎉 Đã nhận mã 60s: "${code}". Đang điền vào trang...`, '#4ade80');
+        log(`🎉 Đang điền mã "${code}" vào ô nhập mã...`, '#4ade80');
         const codeEl = document.getElementById('l4m-code');
         if (codeEl) codeEl.innerText = code;
+
+        const quickInp = document.getElementById('l4m-quick-code');
+        if (quickInp && quickInp.value !== code) quickInp.value = code;
 
         const inputs = document.querySelectorAll("input[name='password'], #password-2, #password, .password");
         inputs.forEach(inp => {
             inp.value = code;
-            // Dispatch standard browser events
             inp.dispatchEvent(new Event('input', { bubbles: true }));
             inp.dispatchEvent(new Event('change', { bubbles: true }));
-            // Dispatch paste and keyup so Link4M's view.js triggers checkPassword natively!
             inp.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter' }));
             inp.dispatchEvent(new ClipboardEvent('paste', { bubbles: true }));
         });
 
-        // Trigger native checkPassword if available in window scope
+        // Trigger native checkPassword if available in page scope
         try {
             if (typeof window.checkPassword === 'function') {
                 window.checkPassword();
             }
         } catch (e) {}
 
-        // Click Link4M's native submit button
+        // Native submit
         setTimeout(() => {
             const forms = document.querySelectorAll('#main-form-2, #main-form');
             forms.forEach(f => {
@@ -517,13 +589,13 @@
     }
 
     /* ══════════════════════════════════════════════════════════
-       6. REALTIME MONITOR LOOP
+       7. REALTIME MONITOR LOOP
        ══════════════════════════════════════════════════════════ */
     function startRealtimeLoop() {
         setInterval(() => {
             if (redirected) return;
 
-            // 1. Check if destination link is present
+            // 1. Destination check
             if (window.destination_url && window.destination_url.startsWith('http') && !window.destination_url.includes('link4m')) {
                 handleDestination(window.destination_url);
                 return;
@@ -535,7 +607,6 @@
                     handleDestination(href);
                     return;
                 }
-                // If button is unlocked by Link4M, click it!
                 if (!gl.classList.contains('disabled') && !gl.hasAttribute('disabled')) {
                     gl.click();
                 }
@@ -563,7 +634,7 @@
         buildHUD();
         startRealtimeLoop();
 
-        // Clean annoying popups
+        // Clean annoying overlays
         document.querySelectorAll('#ad_banner, .modal-backdrop, [class*="overlay"]').forEach(el => el.remove());
 
         // Initial scan
