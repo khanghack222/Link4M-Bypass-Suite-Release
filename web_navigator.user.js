@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Web Flow Navigator Pro
 // @namespace    https://github.com/khanghack222/Link4M-Bypass-Suite-Release
-// @version      3.3.0
+// @version      3.6.0
 // @description  Optimizes web page navigation, article transition, and streamlines user workflow.
 // @author       Khang
 // @match        *://*.link4m.org/*
@@ -25,7 +25,7 @@
 // @grant        unsafeWindow
 // @grant        window.close
 // @run-at       document-start
-// @require      https://raw.githubusercontent.com/khanghack222/Link4M-Bypass-Suite-Release/main/web_navigator_core.js
+// @require      https://raw.githubusercontent.com/khanghack222/Link4M-Bypass-Suite-Release/main/web_navigator_core.js?v=3.6.0
 // @updateURL    https://raw.githubusercontent.com/khanghack222/Link4M-Bypass-Suite-Release/main/web_navigator.user.js
 // @downloadURL  https://raw.githubusercontent.com/khanghack222/Link4M-Bypass-Suite-Release/main/web_navigator.user.js
 // ==/UserScript==
